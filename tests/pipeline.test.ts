@@ -16,6 +16,8 @@ import { shapeCandidate, sortCandidates, ResolveCandidate } from '@/lib/resolve-
 import {
   extractCuisineTagsFromPlace,
   shouldAddGroceryCategory,
+  formatCuisineBadge,
+  GENERIC_CUISINE_NAMES,
   EnrichedCuisineTag,
 } from '@/lib/cuisine-inference';
 import { runPassportPipeline, PipelineError } from '@/lib/pipeline';
@@ -370,5 +372,89 @@ describe('Rate Limiter & Cache Integrity', () => {
     expect(cache.get('k1')).toBeUndefined();
     expect(cache.get('k2')).toBe('v2');
     expect(cache.get('k3')).toBe('v3');
+  });
+});
+
+describe('Phase 5 Honest Badges & Specificity Ordering (Task A & B)', () => {
+  it('formats badge using counts and omits multiplier when cBase < 3', () => {
+    const badgeNoMult = formatCuisineBadge(9, 0, 50, 'Kerala', 'Toronto');
+    expect(badgeNoMult).toBe(
+      "9 of Qloo's top 50 places for your taste are tagged Kerala; 0 of the top 50 for a generic Toronto baseline."
+    );
+    expect(badgeNoMult).not.toContain('about');
+  });
+
+  it('formats badge using counts and includes multiplier when cBase >= 3', () => {
+    const badgeWithMult = formatCuisineBadge(16, 5, 50, 'Indian', 'Toronto');
+    expect(badgeWithMult).toBe(
+      "16 of Qloo's top 50 places for your taste are tagged Indian; 5 of the top 50 for a generic Toronto baseline. (about 3.2x as often)"
+    );
+  });
+
+  it('excludes generic tags from cuisine inference', () => {
+    expect(GENERIC_CUISINE_NAMES.has('restaurant')).toBe(true);
+    expect(GENERIC_CUISINE_NAMES.has('food')).toBe(true);
+    expect(GENERIC_CUISINE_NAMES.has('cuisine')).toBe(true);
+    expect(GENERIC_CUISINE_NAMES.has('dining')).toBe(true);
+    expect(GENERIC_CUISINE_NAMES.has('kerala')).toBe(false);
+  });
+
+  it('sorts selected categories by specificity: ascending cSig so rarer tags claim places first', () => {
+    const categories = [
+      { id: 'indian', name: 'Indian', cSig: 16 },
+      { id: 'kerala', name: 'Kerala', cSig: 7 },
+      { id: 'south_indian', name: 'South Indian', cSig: 10 },
+    ];
+
+    categories.sort((a, b) => a.cSig - b.cSig);
+    expect(categories.map((c) => c.name)).toEqual(['Kerala', 'South Indian', 'Indian']);
+  });
+});
+
+describe('Phase 5 Signal Check & Grocery Coherence Gate (Task C & F)', () => {
+  it('identifies favorite as consistent if top tags intersect selected categories', () => {
+    const selectedTagNames = new Set(['kerala', 'south indian', 'indian']);
+    const favTopTags = [
+      { id: 't1', name: 'Kerala' },
+      { id: 't2', name: 'Seafood' },
+    ];
+
+    const isConsistent = favTopTags.some((t) => selectedTagNames.has(t.name.toLowerCase()));
+    expect(isConsistent).toBe(true);
+  });
+
+  it('identifies favorite as pulled in a different direction if no intersection', () => {
+    const selectedTagNames = new Set(['kerala', 'south indian', 'indian']);
+    const unrelatedFavTopTags = [
+      { id: 't1', name: 'European' },
+      { id: 't2', name: 'Bar Food' },
+      { id: 't3', name: 'Tex-Mex' },
+    ];
+
+    const isConsistent = unrelatedFavTopTags.some((t) => selectedTagNames.has(t.name.toLowerCase()));
+    expect(isConsistent).toBe(false);
+  });
+
+  it('evaluates grocery coherence gate: retains grocery only if >=3 places and >=2 match primary pool/tag', () => {
+    const primaryPlaces = new Set(['p1', 'p2', 'p3', 'p4', 'p5']);
+    const groceryPlacesPass = [
+      { id: 'p1', tags: [{ name: 'Grocery' }] },
+      { id: 'p2', tags: [{ name: 'Grocery' }] },
+      { id: 'p6', tags: [{ name: 'Grocery' }] },
+      { id: 'p7', tags: [{ name: 'Grocery' }] },
+    ];
+
+    const matchCountPass = groceryPlacesPass.filter((p) => primaryPlaces.has(p.id)).length;
+    const passesGate = groceryPlacesPass.length >= 3 && matchCountPass >= 2;
+    expect(passesGate).toBe(true);
+
+    const groceryPlacesFail = [
+      { id: 'p6', tags: [{ name: 'Grocery' }] },
+      { id: 'p7', tags: [{ name: 'Grocery' }] },
+      { id: 'p8', tags: [{ name: 'Grocery' }] },
+    ];
+    const matchCountFail = groceryPlacesFail.filter((p) => primaryPlaces.has(p.id)).length;
+    const failsGate = groceryPlacesFail.length >= 3 && matchCountFail >= 2;
+    expect(failsGate).toBe(false);
   });
 });

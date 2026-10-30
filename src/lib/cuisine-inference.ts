@@ -17,6 +17,8 @@ export interface FavoriteSignalCheck {
     enrichment: number;
     count: number;
   }>;
+  isConsistent: boolean;
+  statusLabel: string;
   summary: string;
 }
 
@@ -31,6 +33,8 @@ export interface CuisineInferenceResult {
 
 export const BROAD_RESTAURANT_TAG = 'urn:tag:genre:place:restaurant';
 
+export const GENERIC_CUISINE_NAMES = new Set(['restaurant', 'food', 'cuisine', 'dining']);
+
 export const GROCERY_MAPPING_KEYWORDS = [
   'kerala',
   'south_indian',
@@ -42,6 +46,21 @@ export const GROCERY_MAPPING_KEYWORDS = [
 ];
 
 export const INDIAN_GROCERY_TAG = 'urn:tag:category:place:indian_grocery_store';
+
+export function formatCuisineBadge(
+  cSig: number,
+  cBase: number,
+  nPlaces: number,
+  tagName: string,
+  city: string
+): string {
+  let text = `${cSig} of Qloo's top ${nPlaces} places for your taste are tagged ${tagName}; ${cBase} of the top ${nPlaces} for a generic ${city} baseline.`;
+  if (cBase >= 3) {
+    const r = (cSig / cBase).toFixed(1);
+    text += ` (about ${r}x as often)`;
+  }
+  return text;
+}
 
 export function extractCuisineTagsFromPlace(place: any): Array<{ id: string; name: string }> {
   const tags = place?.tags || [];
@@ -81,28 +100,45 @@ export async function inferCuisinesFromTaste(
   let qlooCalls = 0;
   const entityIds = favorites.map((f) => f.resolvedId);
 
-  // 1. Combined restaurant query (signals all favorites, broad tag, take 50)
-  qlooCalls++;
-  const combinedRes = await client.insights({
+  // 1 & 2 & 6: Concurrency optimization - run combined, baseline, and single-signal queries in parallel
+  qlooCalls += 2 + favorites.length;
+
+  const combinedPromise = client.insights({
     filterType: 'urn:entity:place',
     signalEntities: entityIds,
     filterLocationQuery: city,
     filterTags: BROAD_RESTAURANT_TAG,
     take: 50,
   });
-  const combinedPlaces: any[] =
-    combinedRes?.results?.entities ||
-    combinedRes?.entities ||
-    (Array.isArray(combinedRes) ? combinedRes : []);
 
-  // 2. Baseline restaurant query (no signals, broad tag, take 50)
-  qlooCalls++;
-  const baseRes = await client.insights({
+  const basePromise = client.insights({
     filterType: 'urn:entity:place',
     filterLocationQuery: city,
     filterTags: BROAD_RESTAURANT_TAG,
     take: 50,
   });
+
+  const singlePromises = favorites.map((fav) =>
+    client.insights({
+      filterType: 'urn:entity:place',
+      signalEntities: [fav.resolvedId],
+      filterLocationQuery: city,
+      filterTags: BROAD_RESTAURANT_TAG,
+      take: 50,
+    })
+  );
+
+  const [combinedRes, baseRes, ...singleResponses] = await Promise.all([
+    combinedPromise,
+    basePromise,
+    ...singlePromises,
+  ]);
+
+  const combinedPlaces: any[] =
+    combinedRes?.results?.entities ||
+    combinedRes?.entities ||
+    (Array.isArray(combinedRes) ? combinedRes : []);
+
   const baselinePlaces: any[] =
     baseRes?.results?.entities ||
     baseRes?.entities ||
@@ -141,14 +177,21 @@ export async function inferCuisinesFromTaste(
   const coverage = combinedPlaces.length > 0 ? placesWithCuisineTag / combinedPlaces.length : 0;
 
   // 5. Enrichment = (cSig + 1) / (cBase + 1) with cSig >= 3
+  // Exclude generic tags {Restaurant, Food, Cuisine, Dining}
   const enrichedTags: EnrichedCuisineTag[] = [];
   for (const [id, cSig] of Object.entries(cSigMap)) {
+    const rawName = tagNames[id] || id;
+    const nameNorm = rawName.trim().toLowerCase();
+    if (GENERIC_CUISINE_NAMES.has(nameNorm)) {
+      continue;
+    }
+
     if (cSig >= 3) {
       const cBase = cBaseMap[id] || 0;
       const enrichment = (cSig + 1) / (cBase + 1);
       enrichedTags.push({
         id,
-        name: tagNames[id] || id,
+        name: rawName,
         cSig,
         cBase,
         enrichment,
@@ -172,18 +215,16 @@ export async function inferCuisinesFromTaste(
     }
   }
 
-  // 6. Single-signal queries for Signal Check
+  // Task B: Order the SELECTED categories by specificity: ascending cSig (rarer tag first)
+  distinctTopCuisines.sort((a, b) => a.cSig - b.cSig);
+
+  // 6. Process Single-signal queries for Signal Check (Task C)
+  const selectedTagIds = new Set(distinctTopCuisines.map((t) => t.id));
+  const selectedTagNames = new Set(distinctTopCuisines.map((t) => t.name.toLowerCase()));
   const signalCheckResults: FavoriteSignalCheck[] = [];
 
-  for (const fav of favorites) {
-    qlooCalls++;
-    const singleRes = await client.insights({
-      filterType: 'urn:entity:place',
-      signalEntities: [fav.resolvedId],
-      filterLocationQuery: city,
-      filterTags: BROAD_RESTAURANT_TAG,
-      take: 50,
-    });
+  favorites.forEach((fav, idx) => {
+    const singleRes = singleResponses[idx];
     const sPlaces: any[] =
       singleRes?.results?.entities ||
       singleRes?.entities ||
@@ -211,6 +252,9 @@ export async function inferCuisinesFromTaste(
     }> = [];
 
     for (const [id, count] of Object.entries(sCounts)) {
+      const nameNorm = (sNames[id] || id).trim().toLowerCase();
+      if (GENERIC_CUISINE_NAMES.has(nameNorm)) continue;
+
       if (count >= 3) {
         const cBase = cBaseMap[id] || 0;
         const enrichment = (count + 1) / (cBase + 1);
@@ -227,30 +271,45 @@ export async function inferCuisinesFromTaste(
 
     enrichedForFav.sort((a, b) => b.enrichment - a.enrichment || b.count - a.count);
 
-    let summary = '';
-    if (enrichedForFav.length > 0) {
-      // Pick top distinct cuisine names
-      const seenFavNorm = new Set<string>();
-      const topDistinct = enrichedForFav.filter((e) => {
-        const n = e.name.toLowerCase();
-        if (seenFavNorm.has(n)) return false;
-        seenFavNorm.add(n);
-        return true;
-      }).slice(0, 3);
+    // Filter to top distinct cuisine names
+    const seenFavNorm = new Set<string>();
+    const topDistinct = enrichedForFav.filter((e) => {
+      const n = e.name.toLowerCase();
+      if (seenFavNorm.has(n)) return false;
+      seenFavNorm.add(n);
+      return true;
+    }).slice(0, 3);
 
+    // Task C: A favorite is "consistent" if its top-3 enriched tags intersect selected categories
+    const isConsistent = topDistinct.some(
+      (e) => selectedTagIds.has(e.id) || selectedTagNames.has(e.name.toLowerCase())
+    );
+
+    let statusLabel = '';
+    let summary = '';
+
+    if (topDistinct.length === 0) {
+      statusLabel = 'did not visibly shape cuisines';
+      summary = `${fav.resolvedName}: did not visibly shape cuisines`;
+    } else if (isConsistent) {
+      statusLabel = 'consistent';
       const items = topDistinct.map((e) => `${e.name} (${e.enrichment.toFixed(1)}x)`);
       summary = `${fav.resolvedName} -> ${items.join(', ')}`;
     } else {
-      summary = `${fav.resolvedName}: did not visibly shape cuisines`;
+      statusLabel = 'Pulled in a different direction (not used for the categories above)';
+      const items = topDistinct.map((e) => `${e.name} (${e.enrichment.toFixed(1)}x)`);
+      summary = `${fav.resolvedName}: Pulled in a different direction (not used for the categories above) [${items.join(', ')}]`;
     }
 
     signalCheckResults.push({
       favoriteName: fav.resolvedName,
       resolvedId: fav.resolvedId,
       enrichedTags: enrichedForFav,
+      isConsistent,
+      statusLabel,
       summary,
     });
-  }
+  });
 
   return {
     topCuisines: distinctTopCuisines,

@@ -501,6 +501,11 @@ export default function HomePage() {
                 ✓ Every place shown comes from Qloo's results ({totalPlacesCount} places verified)
               </span>
             )}
+            {result.meta.droppedCategories && result.meta.droppedCategories.length > 0 && (
+              <span style={{ color: '#9a3412', background: '#ffedd5', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                Dropped low-coherence: {result.meta.droppedCategories.join(', ')}
+              </span>
+            )}
             {result.meta.cached && (
               <span style={{ background: '#bee3f8', color: '#2b6cb0', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
                 CACHED
@@ -539,19 +544,42 @@ export default function HomePage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
               {result.signalCheck.map((sig, i) => {
-                const hasImpact = sig.enrichedTags.length > 0;
+                const isConsistent = sig.isConsistent;
                 return (
                   <div
                     key={i}
                     style={{
-                      border: '1px solid #e2e8f0',
+                      border: isConsistent ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
                       borderRadius: '6px',
                       padding: '0.75rem',
-                      background: hasImpact ? '#f0fff4' : '#f8fafc',
+                      background: isConsistent ? '#f0fff4' : '#f8fafc',
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{sig.favoriteName}</div>
-                    <div style={{ fontSize: '0.85rem', color: hasImpact ? '#166534' : '#64748b', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.95rem', color: isConsistent ? '#1a202c' : '#64748b' }}>
+                        {sig.favoriteName}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: '4px',
+                          background: isConsistent ? '#dcfce7' : '#f1f5f9',
+                          color: isConsistent ? '#15803d' : '#64748b',
+                        }}
+                      >
+                        {isConsistent ? 'Consistent' : 'Pulled elsewhere'}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '0.82rem',
+                        color: isConsistent ? '#166534' : '#64748b',
+                        marginTop: '0.35rem',
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {sig.summary}
                     </div>
                   </div>
