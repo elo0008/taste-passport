@@ -544,4 +544,118 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
     const shouldRerun = consistentFavs.length >= 2 && unalignedFavs.length >= 1;
     expect(shouldRerun).toBe(false);
   });
+
+  it('asserts displayed badge counts come from post-rerun query set when self-correction triggers', async () => {
+    const origEnv = process.env.LLM_DISABLED;
+    process.env.LLM_DISABLED = 'true';
+
+    try {
+      // Create synthetic places
+      const makePlaces = (count: number, tagId: string, tagName: string) =>
+        Array.from({ length: count }, (_, i) => ({
+          entity_id: `place-${tagId}-${i}`,
+          name: `${tagName} Venue ${i}`,
+          tags: [{ id: tagId, name: tagName }],
+          properties: { specialty_dishes: [{ name: 'Dish A' }] },
+        }));
+
+      const mockClient = new (await import('@/lib/qloo')).QlooClient({
+        apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+        maxRetries: 0,
+        fetchFn: async (url: string | URL) => {
+          const urlObj = typeof url === 'string' ? new URL(url) : url;
+          const signalParam = urlObj.searchParams.get('signal.interests.entities');
+          const filterTags = urlObj.searchParams.get('filter.tags');
+
+          // Baseline query (no signal entities)
+          if (!signalParam) {
+            return new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });
+          }
+
+          // Initial combined query (all 3 favorites: id-fav1,id-fav2,id-fav3)
+          if (signalParam === 'id-fav1,id-fav2,id-fav3') {
+            // Initial pass returns 9 Kerala places
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(9, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Rerun combined query with consistent favorites only: id-fav1,id-fav2
+          if (signalParam === 'id-fav1,id-fav2') {
+            // If category places query for Kerala (takes 50)
+            // or rerun combined query: returns 11 Kerala places!
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(11, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Single signal query: fav1 -> Kerala
+          if (signalParam === 'id-fav1') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(5, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Single signal query: fav2 -> Kerala
+          if (signalParam === 'id-fav2') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(5, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Single signal query: fav3 -> European (unaligned)
+          if (signalParam === 'id-fav3') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(5, 'urn:tag:cuisine:qloo:european', 'European') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          return new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });
+        },
+      });
+
+      const result = await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
+            { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
+            { name: 'Unaligned Fav', type: 'author', entityId: 'id-fav3' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+
+      // Verify self-correction notice
+      expect(result.meta.notice).toBe(
+        'Left out of the final search: Unaligned Fav (pulled in a different direction)'
+      );
+
+      // Verify categories contain Kerala
+      const keralaCat = result.categories.find((c) => c.tagId === 'urn:tag:cuisine:qloo:kerala');
+      expect(keralaCat).toBeDefined();
+
+      // Crucial assertion: badge and cSig MUST reflect the post-rerun count (11), NOT the initial count (9)
+      expect(keralaCat?.cSig).toBe(11);
+      expect(keralaCat?.badge).toContain("11 of Qloo's top 50 places");
+      expect(keralaCat?.badge).not.toContain("9 of Qloo's top 50 places");
+    } finally {
+      process.env.LLM_DISABLED = origEnv;
+    }
+  });
 });
