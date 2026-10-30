@@ -642,7 +642,7 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
       );
 
       // Verify self-correction notice
-      expect(result.meta.notice).toBe(
+      expect(result.meta.notice).toContain(
         'Left out of the final search: Unaligned Fav (pulled in a different direction)'
       );
 

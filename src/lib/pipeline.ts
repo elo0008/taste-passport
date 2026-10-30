@@ -710,11 +710,15 @@ export async function runPassportPipeline(
       cached: false,
       narration,
       notice:
-        deadlineNotice ||
-        selfCorrectionNotice ||
-        (narration === 'template'
-          ? 'AI descriptions unavailable right now; showing data only'
-          : undefined),
+        [
+          deadlineNotice,
+          selfCorrectionNotice,
+          narration === 'template'
+            ? 'AI descriptions unavailable right now; showing data only'
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join(' | ') || undefined,
       blurbCount,
       nullBlurbCount,
       droppedCategories,
