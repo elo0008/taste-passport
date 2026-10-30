@@ -7,6 +7,7 @@ import {
   inferCuisinesFromTaste,
   shouldAddGroceryCategory,
   formatCuisineBadge,
+  toTitleCase,
   EnrichedCuisineTag,
   FavoriteSignalCheck,
   INDIAN_GROCERY_TAG,
@@ -367,7 +368,7 @@ export async function runPassportPipeline(
 
   const categoryConfigs: CandidateCategoryConfig[] = activeTopCuisines.map((t) => ({
     tagId: t.id,
-    title: t.name,
+    title: toTitleCase(t.name),
     kind: 'inferred_cuisine',
     kindLabel: 'Qloo Taste Inferred',
     enrichment: t.enrichment,

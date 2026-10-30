@@ -47,6 +47,12 @@ export const GROCERY_MAPPING_KEYWORDS = [
 
 export const INDIAN_GROCERY_TAG = 'urn:tag:category:place:indian_grocery_store';
 
+export function toTitleCase(str: string): string {
+  if (!str) return '';
+  const normalized = str.replace(/_/g, ' ').trim();
+  return normalized.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
 export function formatCuisineBadge(
   cSig: number,
   cBase: number,
@@ -54,7 +60,8 @@ export function formatCuisineBadge(
   tagName: string,
   city: string
 ): string {
-  let text = `${cSig} of Qloo's top ${nPlaces} places for your taste are tagged ${tagName}; ${cBase} of the top ${nPlaces} for a generic ${city} baseline.`;
+  const displayTag = toTitleCase(tagName);
+  let text = `${cSig} of Qloo's top ${nPlaces} places for your taste are tagged ${displayTag}; ${cBase} of the top ${nPlaces} for a generic ${city} baseline.`;
   if (cBase >= 3) {
     const r = (cSig / cBase).toFixed(1);
     text += ` (about ${r}x as often)`;
@@ -72,9 +79,10 @@ export function extractCuisineTagsFromPlace(place: any): Array<{ id: string; nam
       (id.startsWith('urn:tag:cuisine:') || id.startsWith('urn:tag:genre:place:restaurant:')) &&
       id !== BROAD_RESTAURANT_TAG
     ) {
+      const rawName = t.name || id.split(':').pop() || id;
       results.push({
         id: t.id,
-        name: t.name || id.split(':').pop() || id,
+        name: toTitleCase(rawName),
       });
     }
   }
@@ -293,11 +301,11 @@ export async function inferCuisinesFromTaste(
       summary = `${fav.resolvedName}: did not visibly shape cuisines`;
     } else if (isConsistent) {
       statusLabel = 'consistent';
-      const items = topDistinct.map((e) => `${e.name} (${e.enrichment.toFixed(1)}x)`);
+      const items = topDistinct.map((e) => `${toTitleCase(e.name)} (${e.enrichment.toFixed(1)}x)`);
       summary = `${fav.resolvedName} -> ${items.join(', ')}`;
     } else {
       statusLabel = 'Pulled in a different direction (not used for the categories above)';
-      const items = topDistinct.map((e) => `${e.name} (${e.enrichment.toFixed(1)}x)`);
+      const items = topDistinct.map((e) => `${toTitleCase(e.name)} (${e.enrichment.toFixed(1)}x)`);
       summary = `${fav.resolvedName}: Pulled in a different direction (not used for the categories above) [${items.join(', ')}]`;
     }
 

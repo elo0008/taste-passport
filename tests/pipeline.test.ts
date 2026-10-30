@@ -17,6 +17,7 @@ import {
   extractCuisineTagsFromPlace,
   shouldAddGroceryCategory,
   formatCuisineBadge,
+  toTitleCase,
   GENERIC_CUISINE_NAMES,
   EnrichedCuisineTag,
 } from '@/lib/cuisine-inference';
@@ -397,6 +398,15 @@ describe('Phase 5 Honest Badges & Specificity Ordering (Task A & B)', () => {
     expect(GENERIC_CUISINE_NAMES.has('cuisine')).toBe(true);
     expect(GENERIC_CUISINE_NAMES.has('dining')).toBe(true);
     expect(GENERIC_CUISINE_NAMES.has('kerala')).toBe(false);
+  });
+
+  it('formats cuisine names with toTitleCase for display', () => {
+    expect(toTitleCase('south_indian')).toBe('South Indian');
+    expect(toTitleCase('kerala')).toBe('Kerala');
+    expect(toTitleCase('north indian')).toBe('North Indian');
+    expect(toTitleCase('coffee_shop')).toBe('Coffee Shop');
+    expect(toTitleCase('tex-mex')).toBe('Tex-Mex');
+    expect(toTitleCase('Indian')).toBe('Indian');
   });
 
   it('sorts selected categories by specificity: ascending cSig so rarer tags claim places first', () => {
