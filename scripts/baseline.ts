@@ -3,6 +3,8 @@ import path from 'path';
 import { z } from 'zod';
 import { generateJson } from '../src/lib/gemini';
 import { QlooClient } from '../src/lib/qloo';
+import { inferCuisinesFromTaste } from '../src/lib/cuisine-inference';
+import { resolveSingleFavorite, FavoriteType } from '../src/lib/resolve-service';
 
 function loadEnvLocal() {
   const envPath = path.resolve(process.cwd(), '.env.local');
@@ -39,57 +41,166 @@ const LLMGuessSchema = z.object({
   ),
 });
 
-interface BaselineProfile {
-  name: string;
-  destination: string;
-  favorites: string[];
-  qlooInferredCuisines: string[];
+export const METRO_AREAS: Record<string, string[]> = {
+  toronto: [
+    'toronto',
+    'mississauga',
+    'brampton',
+    'markham',
+    'vaughan',
+    'richmond hill',
+    'oakville',
+    'burlington',
+    'scarborough',
+    'etobicoke',
+    'north york',
+    'york',
+    'east york',
+    'pickering',
+    'ajax',
+    'whitby',
+    'oshawa',
+    'milton',
+  ],
+  london: [
+    'london',
+    'westminster',
+    'camden',
+    'islington',
+    'hackney',
+    'southwark',
+    'lambeth',
+    'kensington',
+    'chelsea',
+    'fulham',
+    'hammersmith',
+    'wandsworth',
+    'croydon',
+    'barnet',
+    'ealing',
+    'brent',
+    'bromley',
+    'enfield',
+    'greenwich',
+    'haringey',
+    'harrow',
+    'havering',
+    'hillingdon',
+    'hounslow',
+    'kingston',
+    'merton',
+    'newham',
+    'redbridge',
+    'richmond',
+    'sutton',
+    'tower hamlets',
+    'waltham forest',
+    'southall',
+    'hayes',
+    'wembley',
+    'stratford',
+  ],
+};
+
+function isAddressInMetro(address: string, destination: string): boolean {
+  const normAddr = address.toLowerCase();
+  const destKey = destination.trim().toLowerCase();
+  const metroList = METRO_AREAS[destKey] || [destKey];
+
+  return metroList.some((mun) => {
+    const reg = new RegExp(`\\b${mun}\\b`, 'i');
+    return reg.test(normAddr);
+  });
 }
 
-const PROFILES: BaselineProfile[] = [
+interface ProfileConfig {
+  name: string;
+  destination: string;
+  favorites: Array<{ name: string; type: FavoriteType }>;
+}
+
+const PROFILES: ProfileConfig[] = [
   {
     name: 'Profile 1 (Kerala Favorites)',
     destination: 'Toronto',
-    favorites: ['Premam', 'Drishyam', 'A. R. Rahman', 'K. S. Chithra', 'Vaikom Muhammad Basheer'],
-    qlooInferredCuisines: ['Kerala', 'South Indian', 'Indian'],
+    favorites: [
+      { name: 'Premam', type: 'movie' },
+      { name: 'Drishyam', type: 'movie' },
+      { name: 'A. R. Rahman', type: 'artist' },
+      { name: 'K. S. Chithra', type: 'artist' },
+      { name: 'Vaikom Muhammad Basheer', type: 'person' },
+    ],
   },
   {
     name: 'Profile 2 (Punjabi Favorites)',
     destination: 'London',
-    favorites: ['Diljit Dosanjh', 'Sholay', 'Sidhu Moose Wala', 'Jab We Met'],
-    qlooInferredCuisines: ['Punjabi', 'North Indian', 'Indian'],
+    favorites: [
+      { name: 'Diljit Dosanjh', type: 'artist' },
+      { name: 'Sholay', type: 'movie' },
+      { name: 'Sidhu Moose Wala', type: 'artist' },
+      { name: 'Jab We Met', type: 'movie' },
+    ],
   },
   {
     name: 'Control (Indie/Western Favorites)',
     destination: 'Toronto',
-    favorites: ['Radiohead', 'Inception', 'Breaking Bad', 'Fleabag'],
-    qlooInferredCuisines: ['Brewpub', 'Gastropub', 'Cocktail Bar'],
+    favorites: [
+      { name: 'Radiohead', type: 'artist' },
+      { name: 'Inception', type: 'movie' },
+      { name: 'Breaking Bad', type: 'tv_show' },
+      { name: 'Fleabag', type: 'tv_show' },
+    ],
   },
 ];
 
 async function runBaselineComparison() {
   console.log('====================================================');
-  console.log('TASK H: OFFLINE QLOO VS LLM-ONLY BASELINE COMPARISON');
+  console.log('TASK A: VERIFIABILITY BASELINE (LLM-ONLY VS QLOO GROUNDED)');
   console.log('====================================================\n');
 
-  const qloo = new QlooClient();
+  const client = new QlooClient();
+  const SEARCH_TAKE = 10;
+  console.log(`Probe Configuration:`);
+  console.log(`- Qloo /search take used: ${SEARCH_TAKE} candidates per restaurant lookup`);
+  console.log(`- Sample size n: 5 places per profile (total n=15)`);
+  console.log(`- Documented Metro Lists:`);
+  for (const [city, muns] of Object.entries(METRO_AREAS)) {
+    console.log(`  • ${city.toUpperCase()}: ${muns.slice(0, 10).join(', ')}... (+${muns.length - 10} more)`);
+  }
+  console.log(`- Catalog note: Qloo's catalogue is extensive but incomplete; lookup failure reflects unverified status in Qloo, not proof of non-existence.\n`);
+
   const resultsTable: Array<{
     profile: string;
-    destination: string;
-    llmCuisines: string[];
-    qlooCuisines: string[];
-    cuisineOverlap: string;
-    totalPlacesRecommended: number;
-    placesFoundInQloo: number;
-    placesInTargetCity: number;
-    hallucinatedOrUnknownPct: string;
+    city: string;
+    llmCuisines: string;
+    qlooCuisines: string;
+    cuisineAgreement: string;
+    matchedInMetroArea: string;
+    matchFraction: string;
   }> = [];
 
   for (const prof of PROFILES) {
-    console.log(`\nEvaluating ${prof.name} -> ${prof.destination}...`);
+    console.log(`----------------------------------------------------`);
+    console.log(`Evaluating ${prof.name} -> ${prof.destination}`);
+    console.log(`----------------------------------------------------`);
+
+    // 1. Resolve favorites using pipeline's shared resolution logic
+    const resolvedFavs = [];
+    for (const f of prof.favorites) {
+      const candidates = await resolveSingleFavorite(client, f.name, f.type);
+      if (candidates.length > 0) {
+        resolvedFavs.push({ resolvedName: candidates[0].name, resolvedId: candidates[0].entityId });
+      }
+    }
+
+    // 2. Reuse the EXACT same inference function as the pipeline
+    const qlooInference = await inferCuisinesFromTaste(client, prof.destination, resolvedFavs);
+    const qlooCuisineNames = qlooInference.topCuisines.map((c) => c.name);
+
+    // 3. Prompt Gemini for direct baseline guess (n=5 places)
     const prompt = `You are a travel concierge.
 Given these cultural favorites from a user:
-${prof.favorites.map((f) => `- ${f}`).join('\n')}
+${prof.favorites.map((f) => `- ${f.name} (${f.type})`).join('\n')}
 
 1. What top 3 regional dining cuisines would appeal to this user?
 2. Recommend exactly 5 specific, real restaurants/places located in or around ${prof.destination} that fit these tastes.
@@ -108,76 +219,85 @@ Respond in JSON matching:
 }`;
 
     const llmRes = await generateJson(LLMGuessSchema, prompt, { temperature: 0.1 });
-    console.log(`  LLM Guessed Cuisines: ${llmRes.cuisines.join(', ')}`);
-    console.log(`  Qloo Inferred Cuisines: ${prof.qlooInferredCuisines.join(', ')}`);
+    console.log(`  LLM Guessed Cuisines:   ${llmRes.cuisines.join(', ')}`);
+    console.log(`  Qloo Inferred Cuisines: ${qlooCuisineNames.join(', ')}`);
 
-    let placesFound = 0;
-    let placesInTargetCity = 0;
+    // Calculate cuisine agreement
+    const qNorm = qlooCuisineNames.map((c) => c.toLowerCase());
+    const agreedCuisines = llmRes.cuisines.filter((c) =>
+      qNorm.some((qn) => qn.includes(c.toLowerCase()) || c.toLowerCase().includes(qn))
+    );
+    const cuisineAgreementStr = `${agreedCuisines.length}/${llmRes.cuisines.length} (${((agreedCuisines.length / llmRes.cuisines.length) * 100).toFixed(0)}%)`;
 
+    // 4. Verifiability check in Qloo /search
+    let matchedInMetroCount = 0;
+    const totalPlaces = llmRes.places.length;
+
+    console.log(`\n  Checking verifiability of LLM-named places (up to ${SEARCH_TAKE} candidates per lookup):`);
     for (const p of llmRes.places) {
       try {
-        const searchRes = await qloo.search({
+        const searchResults = await client.search({
           query: p.name,
           types: 'urn:entity:place',
-          take: 3,
+          take: SEARCH_TAKE,
         });
 
-        const entities = Array.isArray(searchRes) ? searchRes : [];
-        const bestMatch = entities[0];
+        const candidates = Array.isArray(searchResults) ? searchResults : [];
+        let matchedCandidate: any = null;
 
-        if (bestMatch) {
-          placesFound++;
-          const addr = String(bestMatch.properties?.address || '').toLowerCase();
-          const target = prof.destination.toLowerCase();
-          const inCity = addr.includes(target) || addr.length === 0;
-          if (inCity) {
-            placesInTargetCity++;
+        for (const cand of candidates) {
+          const addr = String(cand.properties?.address || cand.address || '');
+          if (isAddressInMetro(addr, prof.destination)) {
+            matchedCandidate = cand;
+            break;
           }
-          console.log(`    ✓ Found in Qloo: "${p.name}" -> Qloo entity: "${bestMatch.name}" (${bestMatch.properties?.address || 'Metro area'})`);
+        }
+
+        if (matchedCandidate) {
+          matchedInMetroCount++;
+          const candAddr = String(matchedCandidate.properties?.address || matchedCandidate.address || 'Metro area');
+          console.log(`    ✓ "${p.name}" -> Matched in target metro area: "${matchedCandidate.name}" (${candAddr})`);
         } else {
-          console.log(`    ❌ NOT FOUND in Qloo: "${p.name}" (LLM guessed/unverified place)`);
+          console.log(`    • "${p.name}" -> No candidate matched within ${prof.destination} metro area (got ${candidates.length} candidates elsewhere or unlisted)`);
         }
       } catch (err: any) {
-        console.log(`    ❌ Search failed for "${p.name}": ${err.message}`);
+        console.log(`    ! "${p.name}" -> Search lookup error: ${err.message}`);
       }
     }
 
-    // Cuisine overlap check
-    const qNorm = prof.qlooInferredCuisines.map((c) => c.toLowerCase());
-    const matchedCuisines = llmRes.cuisines.filter((c) =>
-      qNorm.some((qn) => qn.includes(c.toLowerCase()) || c.toLowerCase().includes(qn))
-    );
-
-    const hallucinatedPct = (((llmRes.places.length - placesInTargetCity) / llmRes.places.length) * 100).toFixed(0);
+    const matchedStr = `${matchedInMetroCount}/${totalPlaces}`;
+    const matchedPct = `${((matchedInMetroCount / totalPlaces) * 100).toFixed(0)}%`;
 
     resultsTable.push({
       profile: prof.name,
-      destination: prof.destination,
-      llmCuisines: llmRes.cuisines,
-      qlooCuisines: prof.qlooInferredCuisines,
-      cuisineOverlap: `${matchedCuisines.length}/${llmRes.cuisines.length}`,
-      totalPlacesRecommended: llmRes.places.length,
-      placesFoundInQloo: placesFound,
-      placesInTargetCity: placesInTargetCity,
-      hallucinatedOrUnknownPct: `${hallucinatedPct}%`,
+      city: prof.destination,
+      llmCuisines: llmRes.cuisines.join(', '),
+      qlooCuisines: qlooCuisineNames.join(', '),
+      cuisineAgreement: cuisineAgreementStr,
+      matchedInMetroArea: matchedStr,
+      matchFraction: matchedPct,
     });
+
+    console.log(`  Result: ${matchedStr} places matched in target metro area (${matchedPct})\n`);
   }
 
-  console.log('\n====================================================');
-  console.log('SUMMARY BASELINE TABLE (LLM-ONLY VS QLOO GROUNDED)');
+  console.log('====================================================');
+  console.log('SUMMARY TABLE: LLM-NAMED RESTAURANTS MATCHED TO QLOO PLACE IN TARGET METRO');
+  console.log('(A rough lower bound on verifiability, not a hallucination rate; n=5 per profile)');
   console.log('====================================================');
   console.table(
     resultsTable.map((r) => ({
       Profile: r.profile,
-      City: r.destination,
-      'LLM Cuisines': r.llmCuisines.join(', '),
-      'Qloo Cuisines': r.qlooCuisines.join(', '),
-      'Cuisine Overlap': r.cuisineOverlap,
-      'LLM Places Verified': `${r.placesInTargetCity}/${r.totalPlacesRecommended}`,
-      'Unverified / Hallucinated Rate': r.hallucinatedOrUnknownPct,
+      City: r.city,
+      'LLM Cuisines': r.llmCuisines,
+      'Qloo Cuisines': r.qlooCuisines,
+      'Cuisine Agreement': r.cuisineAgreement,
+      'Matched in Target Metro': r.matchedInMetroArea,
+      'Match %': r.matchFraction,
     }))
   );
-  console.log('====================================================\n');
+
+  console.log('Finding: LLMs infer obvious cuisines well; the contribution of Qloo here is data-grounded, located places with address, rating, phone, website, and taste-derived cuisines for less obvious profiles.\n');
 }
 
 runBaselineComparison().catch((err) => {
