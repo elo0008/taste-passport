@@ -84,7 +84,7 @@ export async function resolveSingleFavorite(
     const typedResults = await client.search({
       query: name,
       types: typeUrn,
-      take: 3,
+      take: 5,
     });
 
     for (const item of typedResults || []) {
@@ -94,7 +94,10 @@ export async function resolveSingleFavorite(
         candidates.push(candidate);
       }
     }
-  } catch {
+  } catch (err: any) {
+    if (err?.status && err.status >= 500) {
+      throw err;
+    }
     // Continue to untyped fallback
   }
 
@@ -114,17 +117,55 @@ export async function resolveSingleFavorite(
           if (candidates.length >= 3) break;
         }
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.status && err.status >= 500) {
+        throw err;
+      }
       // Ignore
     }
   }
 
-  const finalCandidates = candidates.slice(0, 3);
+  let finalCandidates = sortCandidates(candidates, name).slice(0, 3);
   if (finalCandidates.length > 0) {
     resolveCache.set(cacheKey, finalCandidates, 24 * 60 * 60 * 1000);
   }
 
   return finalCandidates;
+}
+
+export function isSequel(name: string, inputName: string): boolean {
+  const normName = name.trim().toLowerCase();
+  const normInput = inputName.trim().toLowerCase();
+  const sequelPattern = /\b(2|3|4|ii|iii|iv|part\s*2|part\s*ii|chapter\s*2)\b/i;
+  return sequelPattern.test(normName) && !sequelPattern.test(normInput);
+}
+
+export function sortCandidates(candidates: ResolveCandidate[], inputName: string): ResolveCandidate[] {
+  const cleanInput = inputName.replace(/\(\d{4}\)/g, '').trim().toLowerCase();
+
+  return [...candidates].sort((a, b) => {
+    const aSequel = isSequel(a.name, inputName);
+    const bSequel = isSequel(b.name, inputName);
+    if (aSequel !== bSequel) {
+      return aSequel ? 1 : -1; // non-sequel first
+    }
+
+    const aClean = a.name.replace(/\(\d{4}\)/g, '').trim().toLowerCase();
+    const bClean = b.name.replace(/\(\d{4}\)/g, '').trim().toLowerCase();
+    const aExact = aClean === cleanInput;
+    const bExact = bClean === cleanInput;
+    if (aExact !== bExact) {
+      return aExact ? -1 : 1; // exact match first
+    }
+
+    const aYear = a.year ?? 9999;
+    const bYear = b.year ?? 9999;
+    if (aYear !== bYear) {
+      return aYear - bYear;
+    }
+
+    return 0;
+  });
 }
 
 export async function resolveFavoritesBatch(
