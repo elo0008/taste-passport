@@ -8,6 +8,7 @@ import {
   shouldAddGroceryCategory,
   formatCuisineBadge,
   toTitleCase,
+  computeTopTagsFromPlaces,
   EnrichedCuisineTag,
   FavoriteSignalCheck,
   INDIAN_GROCERY_TAG,
@@ -79,6 +80,17 @@ export interface PipelineTimings {
   totalMs: number;
 }
 
+export interface TasteVsBaselineTag {
+  tagName: string;
+  count: number;
+}
+
+export interface TasteVsBaseline {
+  destination: string;
+  baselineTop: TasteVsBaselineTag[];
+  tasteTop: TasteVsBaselineTag[];
+}
+
 export interface PassportResult {
   destination: string;
   resolved: ResolvedFavorite[];
@@ -86,6 +98,7 @@ export interface PassportResult {
   categories: FinalCategory[];
   signalCheck: FavoriteSignalCheck[];
   firstMonth: string;
+  tasteVsBaseline?: TasteVsBaseline;
   meta: {
     qlooCalls: number;
     llmCalls: number;
@@ -149,7 +162,34 @@ export async function runPassportPipeline(
     totalMs: 0,
   };
 
-  // 1. Rate Limiting Check
+  // 1. Destination Input Validation
+  if (!input.destination || !input.destination.trim()) {
+    throw new PipelineError('Destination city is required. Please enter a city or metropolitan area.', 400);
+  }
+
+  // 2. Duplicate favorites detection & merging
+  const seenFavKeys = new Set<string>();
+  const deduplicatedFavorites: FavoriteInput[] = [];
+  const mergedDuplicateNames: string[] = [];
+
+  for (const fav of input.favorites) {
+    const key = `${fav.type}:${fav.name.trim().toLowerCase()}`;
+    if (seenFavKeys.has(key)) {
+      if (!mergedDuplicateNames.includes(fav.name.trim())) {
+        mergedDuplicateNames.push(fav.name.trim());
+      }
+    } else {
+      seenFavKeys.add(key);
+      deduplicatedFavorites.push(fav);
+    }
+  }
+
+  let duplicateNotice: string | undefined = undefined;
+  if (mergedDuplicateNames.length > 0) {
+    duplicateNotice = `Duplicate favorites merged: ${mergedDuplicateNames.join(', ')}`;
+  }
+
+  // 3. Rate Limiting Check
   if (!options?.bypassRateLimit) {
     const rateCheck = rateLimiter.check(clientIp);
     if (!rateCheck.allowed) {
@@ -163,7 +203,7 @@ export async function runPassportPipeline(
   // 2. Cache Check
   const cacheKey = MemoryCache.hashKey({
     dest: input.destination.trim().toLowerCase(),
-    favs: input.favorites
+    favs: deduplicatedFavorites
       .map((f) => `${f.type}:${(f.entityId || f.name).trim().toLowerCase()}`)
       .sort(),
     version: 'v5.0',
@@ -211,7 +251,7 @@ export async function runPassportPipeline(
   let resolutionResults;
   try {
     resolutionResults = await Promise.all(
-      input.favorites.map(async (fav) => {
+      deduplicatedFavorites.map(async (fav) => {
         if (fav.entityId) {
           return {
             resolved: true as const,
@@ -279,8 +319,10 @@ export async function runPassportPipeline(
   }
 
   if (resolved.length < 2) {
+    const unresNames = unresolvedFavorites.map((u) => `"${u.name}"`).join(', ');
+    const unresText = unresNames ? ` Unresolved: ${unresNames}.` : '';
     throw new PipelineError(
-      `Could not resolve enough favorites in Qloo's taste database. Resolved ${resolved.length} of ${input.favorites.length}; at least 2 are required.`,
+      `Could not resolve enough favorites in Qloo's taste database (resolved ${resolved.length} of ${deduplicatedFavorites.length}; at least 2 are required).${unresText} Please check spelling or try other artists, films, or authors.`,
       422
     );
   }
@@ -302,6 +344,16 @@ export async function runPassportPipeline(
     );
     totalQlooCalls += inferenceRes.qlooCalls;
   } catch (err: any) {
+    const errMsg = err?.message || '';
+    if (
+      errMsg.includes('filter.location.query is unable to resolve to a valid locality') ||
+      errMsg.includes('unable to resolve to a valid locality')
+    ) {
+      throw new PipelineError(
+        `Could not locate destination "${input.destination}". Please check the spelling of your destination city or try a major nearby city.`,
+        400
+      );
+    }
     throw new PipelineError(
       `Qloo cuisine inference failed: ${QlooApiError.sanitize(err?.message || 'Network error')}`,
       502
@@ -314,6 +366,8 @@ export async function runPassportPipeline(
   const activeSignalCheck = inferenceRes.signalCheck;
   let activeResolved = resolved;
   let selfCorrectionNotice: string | undefined = undefined;
+  let finalBaselinePlaces = inferenceRes.baselinePlaces;
+  let finalCombinedPlaces = inferenceRes.combinedPlaces;
 
   // Task C: Noisy-signal self-correction
   // If at least 2 favorites are "consistent" and at least 1 is "pulled in a different direction",
@@ -344,6 +398,8 @@ export async function runPassportPipeline(
 
     activeTopCuisines = rerunRes.topCuisines;
     activeResolved = consistentFavs;
+    finalBaselinePlaces = rerunRes.baselinePlaces;
+    finalCombinedPlaces = rerunRes.combinedPlaces;
   }
 
   // 5. Stage: QUERY PLACES PER INFERRED CUISINE + GROCERY RULE (Task B, C, F)
@@ -614,6 +670,13 @@ export async function runPassportPipeline(
 
   timings.discoverMs = Math.round(performance.now() - discoverStart);
 
+  if (assembledCategories.length < 2) {
+    throw new PipelineError(
+      `Limited dining coverage found in "${input.destination}" (${assembledCategories.length} category with sufficient places; at least 2 are required). Try searching with a larger metropolitan city (e.g. Toronto, London, New York) or selecting different cultural favorites.`,
+      422
+    );
+  }
+
   // 7. Stage: GROUNDED COMMENTARY & DEADLINE GUARD (Task D & Task E)
   emit({
     type: 'progress',
@@ -694,6 +757,12 @@ export async function runPassportPipeline(
   const totalDurationMs = Math.round(performance.now() - startTime);
   timings.totalMs = totalDurationMs;
 
+  const tasteVsBaseline: TasteVsBaseline = {
+    destination: input.destination,
+    baselineTop: computeTopTagsFromPlaces(finalBaselinePlaces),
+    tasteTop: computeTopTagsFromPlaces(finalCombinedPlaces),
+  };
+
   const finalResult: PassportResult = {
     destination: input.destination,
     resolved,
@@ -701,6 +770,7 @@ export async function runPassportPipeline(
     categories: assembledCategories,
     signalCheck: activeSignalCheck,
     firstMonth: writtenNarratives.firstMonth,
+    tasteVsBaseline,
     meta: {
       qlooCalls: totalQlooCalls,
       llmCalls: llmCallsCount,
@@ -712,6 +782,7 @@ export async function runPassportPipeline(
       notice:
         [
           deadlineNotice,
+          duplicateNotice,
           selfCorrectionNotice,
           narration === 'template'
             ? 'AI descriptions unavailable right now; showing data only'

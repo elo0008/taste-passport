@@ -90,6 +90,30 @@ export function extractCuisineTagsFromPlace(place: any): Array<{ id: string; nam
   return results;
 }
 
+export function computeTopTagsFromPlaces(places: any[]): Array<{ tagName: string; count: number }> {
+  const counts: Record<string, { name: string; count: number }> = {};
+  for (const p of places) {
+    const seen = new Set<string>();
+    for (const t of extractCuisineTagsFromPlace(p)) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        const name = toTitleCase(t.name);
+        const normName = name.toLowerCase();
+        if (GENERIC_CUISINE_NAMES.has(normName)) continue;
+        if (!counts[normName]) {
+          counts[normName] = { name, count: 0 };
+        }
+        counts[normName].count++;
+      }
+    }
+  }
+
+  return Object.values(counts)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 5)
+    .map((c) => ({ tagName: c.name, count: c.count }));
+}
+
 export function shouldAddGroceryCategory(topEnrichedTag: EnrichedCuisineTag | undefined): boolean {
   if (!topEnrichedTag) return false;
   const tagIdNorm = topEnrichedTag.id.toLowerCase();
