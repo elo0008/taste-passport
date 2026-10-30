@@ -215,11 +215,11 @@ export default function HomePage() {
           ℹ️ How it works / What this does not do:
         </strong>
         <ul style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.5 }}>
-          <li>Places and cuisines are chosen by Qloo's taste intelligence graph (no explicit percentage scores are exposed).</li>
+          <li>Cuisines and places are derived from Qloo taste graph tags and baseline comparison.</li>
           <li>Recommendations cover the broader metropolitan area around the destination city ({destination ? `${destination} area` : 'destination area'}).</li>
-          <li>Signals can fail to shift recommendations: see the Signal Check panel to see which favorites actually shaped results.</li>
-          <li>Taste Passport discovers cultural culinary resonance; it does not check live opening hours or table availability.</li>
-          <li>Grocery stops are identified via an explicit cultural mapping rule, not inferred directly by Qloo.</li>
+          <li>Signal self-correction: favorites pulling in an unaligned direction are excluded from the final category search and noted in the Signal Check.</li>
+          <li>Discovers cultural dining resonance; drops venues flagged closed by Qloo, but does not check live hours or reservations.</li>
+          <li>Grocery categories are rule-based and retained only when meeting the coherence gate.</li>
         </ul>
       </section>
 

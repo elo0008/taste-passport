@@ -1,12 +1,12 @@
 # Taste Passport 🌍
 
-Taste Passport connects a traveler or immigrant's cultural favorites from home—filmmakers, musicians, authors, and media—to real dining venues in any destination city. While conventional travel guides and large language models rely on generic popularity lists or hallucinated venues, Taste Passport relies strictly on Qloo's taste intelligence graph to select cuisines and open venues that resonate with the user's authentic taste profile. The AI never guesses or picks venues; Qloo selects the places, and Google Gemini writes concise, strictly grounded descriptions based only on verified menu and venue properties.
+Taste Passport connects a traveler or immigrant's cultural favorites from home—filmmakers, musicians, authors, and media—to real dining venues in any destination city. While conventional travel guides and large language models rely on generic popularity lists or unverified place suggestions, Taste Passport relies on Qloo's taste intelligence graph to select cuisines and dining venues that resonate with the user's cultural taste profile. The AI never guesses or picks venues; Qloo selects the places, and Google Gemini writes concise, strictly grounded descriptions based only on verified menu and venue properties.
 
 ## Target Audience
 Taste Passport is built for:
 - **Relocating Professionals & Expats**: Discovering comforting, culturally resonant culinary communities in new cities.
-- **Diaspora & Heritage Seekers**: Finding regional micro-cuisines (e.g. authentic Kerala or Punjabi dining) rather than generic pan-national chains.
-- **International Students**: Navigating unfamiliar grocery stops and authentic regional eateries.
+- **Diaspora & Heritage Seekers**: Finding regional micro-cuisines (e.g. regional Kerala or Punjabi dining) rather than generic pan-national chains.
+- **International Students**: Navigating unfamiliar grocery stops and regional eateries.
 - **Curious Cultural Travelers**: Experiencing local cities through affinity graphs connected to the music, cinema, and literature they love.
 
 ---
@@ -23,7 +23,7 @@ Taste Passport is built for:
    - If an entity has multiple releases (e.g. *Drishyam* 2013 Malayalam original vs 2015 Hindi remake), the user selects the intended version to avoid silent cultural drift.
 
 3. **Step 3 — Build Passport & Taste Intelligence Results**:
-   - An event stream shows real-time progress: entity resolution, cuisine inference, venue querying, and commentary generation.
+   - An event stream shows live pipeline progress: entity resolution, cuisine inference, venue querying, and commentary generation.
    - **Inferred Cuisines & Honest Badges**: Displays categories ordered by cultural specificity (e.g. *Kerala* before *South Indian* before *Indian*). Badges report exact counts against local baseline: `"9 of Qloo's top 50 places for your taste are tagged Kerala; 0 of the top 50 for a generic Toronto baseline."` Multipliers are shown only when the baseline count is $\ge 3$.
    - **Taste Lift Metric**: Shows the percentage of top recommendations that wouldn't appear without the user's taste signals.
    - **Verified Place Cards**: Up to 6 non-duplicated venues per category with verified address, rating, dishes, and website links. Blurbs are only displayed if menu or description data exists in Qloo.
@@ -95,23 +95,23 @@ User Favorites (Movies, Artists, Authors) + Destination City
 2. **Generic City Baseline Query**: Simultaneously, an identical query is executed without taste signals to measure the destination city's natural, unweighted cuisine distribution.
 3. **Tag Enrichment Ratio**: Every cuisine tag across both pools is extracted, and enrichment is computed via Laplace-smoothed frequency: $\text{Enrichment} = \frac{c_{sig} + 1}{c_{base} + 1}$.
 4. **Statistical Relevance Gate**: Tags must have $c_{sig} \ge 3$ and exclude generic dining tags (`Restaurant`, `Food`, `Cuisine`, `Dining`) to eliminate single-place noise.
-5. **Specificity Ordering**: Selected cuisines are ordered by ascending $c_{sig}$ (rarer, more specific tags like *Kerala* or *Punjabi* precede broad tags like *Indian*), ensuring authentic regional spots are claimed by the most specific category first.
-6. **Grocery Coherence Gate**: Cultural grocery categories are included only if they return $\ge 3$ open venues and $\ge 2$ venues appear in the primary cuisine pool or carry its cuisine tag, preventing disconnected or generic supermarkets from cluttering results.
+5. **Specificity Ordering**: Selected cuisines are ordered by ascending $c_{sig}$ (rarer, more specific tags like *Kerala* or *Punjabi* precede broad tags like *Indian*), ensuring regional spots are claimed by the most specific category first.
+6. **Grocery Coherence Gate**: Cultural grocery categories are included only if they return $\ge 3$ venues and $\ge 2$ venues appear in the primary cuisine pool or carry its cuisine tag, preventing disconnected or generic supermarkets from cluttering results.
 
 ---
 
 ## Role of Gemini & Graceful Degradation
 
-- **Role of the LLM**: Google Gemini (`gemini-3.5-flash-lite`) acts purely as a narrative writer, not a discovery engine. Gemini is strictly prohibited from inventing places, fabricating attributes, using subjective filler words (*cozy*, *charming*, *legendary*), or naming user favorites in venue blurbs.
+- **Role of the LLM**: Google Gemini (`gemini-3.5-flash-lite`) acts strictly as a narrative writer, not a discovery engine. Gemini is strictly prohibited from inventing places, fabricating attributes, using subjective filler words (*cozy*, *charming*, *legendary*), or naming user favorites in venue blurbs.
 - **Provenance Rule**: If a place does not have verified specialty dishes or an official description in Qloo's response, its blurb is strictly `null` (no filler text generated).
-- **Deadline Guard & Fail-Safe Fallback**: If total execution exceeds 40 seconds before writing or if Gemini API limits are reached, Taste Passport automatically falls back to a deterministic, zero-hallucination template (`meta.narration = "template"`), displaying all verified Qloo places and data without interruption.
+- **Deadline Guard & Fail-Safe Fallback**: If total execution exceeds 40 seconds before writing or if Gemini API limits are reached, Taste Passport automatically falls back to a deterministic template (`meta.narration = "template"`), displaying all verified Qloo places and data without interruption.
 
 ---
 
 ## Known Limitations
 
 - **Metropolitan Coverage**: Qloo's place graph indexes major metropolitan areas (e.g. Greater Toronto, Greater London); suburban boundaries may extend beyond municipal city cores.
-- **Dynamic Hours & Reservations**: Taste Passport discovers cultural affinity and open establishments; it does not check real-time table availability or live holiday closures.
+- **Operating Hours & Reservations**: Taste Passport discovers cultural dining resonance and drops venues flagged closed by Qloo; it does not check live opening hours or table reservations.
 - **API Free-Tier Rate Limits**: Free-tier Gemini quota (15 RPM) is protected by in-memory caching and client-side IP rate limiting (6 runs/hour per IP).
 
 ---
@@ -157,7 +157,7 @@ npm test
 # 4. Run end-to-end multi-profile verification
 npm run e2e
 
-# 5. Run blurb provenance audit (proves 0 blurbs without source)
+# 5. Run blurb provenance audit (verifies 0 blurbs without source)
 npm run audit:blurbs
 
 # 6. Run offline LLM vs Qloo baseline comparison
@@ -167,7 +167,7 @@ npm run baseline
 ---
 
 ## Data Privacy & Storage Disclaimer
-Taste Passport does not store user data, session history, or personal profiles. In strict accordance with Qloo API licensing terms, raw Qloo response payloads are never persisted to databases or committed to version control; test fixtures are purely synthetic, and documentation contains aggregate metrics only.
+Taste Passport does not store user data, session history, or personal profiles. In strict accordance with Qloo API licensing terms, raw Qloo response payloads are never persisted to databases or committed to version control; test fixtures are entirely synthetic, and documentation contains aggregate metrics only.
 
 ## License
 MIT License — Copyright (c) 2026 Taste Passport Contributors.

@@ -84,7 +84,7 @@ export function generateFallbackPlan(
         {
           kind: 'grocery',
           keyword: 'indian grocery',
-          reason: `Authentic regional spices and pantry staples for home cooking.`,
+          reason: `Regional spices and pantry staples for home cooking.`,
         },
       ],
     };
@@ -112,7 +112,7 @@ export function generateFallbackPlan(
         {
           kind: 'grocery',
           keyword: 'indian grocery',
-          reason: `Authentic regional spices, lentils, and flatbreads.`,
+          reason: `Regional spices, lentils, and flatbreads.`,
         },
       ],
     };
@@ -147,7 +147,7 @@ export async function planCategories(
 ): Promise<{ culture: string; intents: CategoryIntent[]; source: 'llm' | 'fallback' }> {
   const prompt = `You are a cultural taste planner for Taste Passport.
 Users provide cultural favorites (artists, movies, tv shows, books, authors, brands, podcasts) and a destination city.
-Your task is to identify their primary cultural heritage ("culture", e.g. "Indian", "Punjabi", "Korean", "Mexican", "Italian") and plan up to 4 category search intents for authentic food and grocery in the ${destination} area.
+Your task is to identify their primary cultural heritage ("culture", e.g. "Indian", "Punjabi", "Korean", "Mexican", "Italian") and plan up to 4 category search intents for regional food and grocery in the ${destination} area.
 
 Cultural favorites:
 ${resolvedFavorites.map((f) => `- ${f.name} (${f.type})`).join('\n')}

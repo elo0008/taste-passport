@@ -341,7 +341,7 @@ Return strict JSON matching:
     repairAttempts = 1;
   }
 
-  // Fallback to deterministic template guarantees 0 violations
+  // Fallback to deterministic template ensures 0 violations by construction
   const fallback = generateTemplateFallback(inputCategories, destination);
   return {
     output: fallback,
