@@ -104,6 +104,19 @@ function printProfileSummary(profileTitle: string, res: any) {
     console.log(`  • ${s.summary}`);
   });
 
+  if (res.tasteVsBaseline) {
+    console.log('\n--- Taste vs Baseline Comparison (Task B) ---');
+    console.log(`Destination: ${res.tasteVsBaseline.destination}`);
+    console.log(
+      'Baseline Top 5 Cuisines (No Signal):',
+      res.tasteVsBaseline.baselineTop.map((t: any) => `${t.tagName} (${t.count})`).join(', ')
+    );
+    console.log(
+      'Taste Top 5 Cuisines (Final Signal):',
+      res.tasteVsBaseline.tasteTop.map((t: any) => `${t.tagName} (${t.count})`).join(', ')
+    );
+  }
+
   console.log('\n--- Settling Plan Preview ---');
   console.log(res.firstMonth);
 

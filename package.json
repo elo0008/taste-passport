@@ -12,7 +12,8 @@
     "e2e": "tsx scripts/e2e.ts",
     "audit:blurbs": "tsx scripts/audit-blurbs.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "baseline": "tsx scripts/baseline.ts"
+    "baseline": "tsx scripts/baseline.ts",
+    "sweep": "tsx scripts/sweep.ts"
   },
   "dependencies": {
     "@google/genai": "^0.2.0",
