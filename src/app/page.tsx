@@ -23,7 +23,7 @@ export default function HomePage() {
   const [destination, setDestination] = useState('Toronto');
   const [favorites, setFavorites] = useState<FavoriteRow[]>(DEFAULT_FAVORITES);
 
-  // Resolution state (Task D: User control)
+  // Resolution state
   const [resolving, setResolving] = useState(false);
   const [resolveResults, setResolveResults] = useState<FavoriteResolveResult[] | null>(null);
 
@@ -62,7 +62,10 @@ export default function HomePage() {
     setResult(null);
   };
 
-  // Step 1: Find candidate matches (Task D)
+  const validFavoritesCount = favorites.filter((f) => f.name.trim().length > 0).length;
+  const canFindMatches = validFavoritesCount >= 3 && !resolving && !loading;
+
+  // Step 1: Find candidate matches
   const handleFindMatches = async () => {
     const validFavs = favorites.filter((f) => f.name.trim().length > 0);
     if (validFavs.length < 3) {
@@ -198,31 +201,32 @@ export default function HomePage() {
     : 0;
 
   return (
-    <div style={{ maxWidth: '960px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif', padding: '1rem' }}>
+    <div style={{ maxWidth: '960px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif', padding: '1rem', color: '#1a202c' }}>
       <header style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1.25rem', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem', fontWeight: 800 }}>🌍 Taste Passport</h1>
-        <p style={{ margin: 0, fontSize: '1.05rem', color: '#4a5568', fontWeight: 500 }}>
-          Places chosen by Qloo's taste data. AI only writes the explanations.
+        <p style={{ margin: 0, fontSize: '1.05rem', color: '#4a5568', fontWeight: 600 }}>
+          Qloo picks the cuisines and the places. AI only writes the descriptions.
         </p>
       </header>
 
-      {/* Info Accordion / Explainer (Task F) */}
+      {/* Info Panel (Task E: Honesty copy) */}
       <section style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem 1.25rem', marginBottom: '1.5rem', fontSize: '0.875rem', color: '#475569' }}>
         <strong style={{ color: '#1e293b', display: 'block', marginBottom: '0.4rem' }}>
           ℹ️ How it works / What this does not do:
         </strong>
         <ul style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.5 }}>
-          <li>Places are chosen and ranked purely by Qloo's taste intelligence graph (no explicit percentage scores are exposed).</li>
-          <li>Recommendations cover the broader metropolitan area around the destination city ({destination || 'destination'} area).</li>
+          <li>Places and cuisines are chosen by Qloo's taste intelligence graph (no explicit percentage scores are exposed).</li>
+          <li>Recommendations cover the broader metropolitan area around the destination city ({destination ? `${destination} area` : 'destination area'}).</li>
           <li>Signals can fail to shift recommendations: see the Signal Check panel to see which favorites actually shaped results.</li>
           <li>Taste Passport discovers cultural culinary resonance; it does not check live opening hours or table availability.</li>
+          <li>Grocery stops are identified via an explicit cultural mapping rule, not inferred directly by Qloo.</li>
         </ul>
       </section>
 
       {/* Input Section */}
       <section style={{ background: '#f7fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.5rem', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Step 1: Your Destination & Cultural Favorites</h2>
+          <h2 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>Step 1: Your Destination & Cultural Favorites</h2>
           <button
             type="button"
             onClick={handlePrefillKerala}
@@ -234,6 +238,7 @@ export default function HomePage() {
               borderRadius: '6px',
               fontSize: '0.875rem',
               cursor: loading || resolving ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
             }}
           >
             ⚡ Example (Kerala to Toronto)
@@ -292,7 +297,7 @@ export default function HomePage() {
                 />
                 <select
                   value={fav.type}
-                  onChange={(e) => handleUpdateRow(index, 'type', e.target.value)}
+                  onChange={(e) => handleUpdateRow(index, 'type', e.target.value as FavoriteType)}
                   disabled={loading}
                   style={{
                     padding: '0.45rem 0.65rem',
@@ -349,21 +354,23 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Match Finder Button */}
+        {/* Find My Matches Button (Task G: Clearly enabled / disabled) */}
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={handleFindMatches}
-            disabled={resolving || loading}
+            disabled={!canFindMatches}
             style={{
-              background: resolving ? '#94a3b8' : '#3b82f6',
-              color: '#fff',
-              border: 'none',
+              background: canFindMatches ? '#2563eb' : '#cbd5e1',
+              color: canFindMatches ? '#ffffff' : '#64748b',
+              border: canFindMatches ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
               padding: '0.65rem 1.4rem',
               borderRadius: '6px',
               fontSize: '0.95rem',
-              fontWeight: 600,
-              cursor: resolving || loading ? 'not-allowed' : 'pointer',
+              fontWeight: 700,
+              cursor: canFindMatches ? 'pointer' : 'not-allowed',
+              boxShadow: canFindMatches ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+              transition: 'background-color 0.2s ease',
             }}
           >
             {resolving ? 'Searching Matches...' : '🔍 Find My Matches'}
@@ -374,10 +381,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Step 2: Confirm Entity Matches (Task D) */}
+      {/* Step 2: Confirm Entity Matches (Task G: Sequel check & user confirmation) */}
       {resolveResults && (
         <section style={{ background: '#fff', border: '1px solid #cbd5e0', borderRadius: '8px', padding: '1.5rem', marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1.25rem', margin: '0 0 0.5rem 0' }}>Step 2: Confirm Your Cultural Matches</h2>
+          <h2 style={{ fontSize: '1.25rem', margin: '0 0 0.5rem 0', fontWeight: 700 }}>Step 2: Confirm Your Cultural Matches</h2>
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#64748b' }}>
             Select the exact version or release for your favorites (e.g. Malayalam original vs Hindi remake):
           </p>
@@ -435,12 +442,13 @@ export default function HomePage() {
             ))}
           </div>
 
+          {/* Build Passport Button (Task G: Clearly enabled / disabled) */}
           <button
             type="button"
             onClick={() => handleBuildPassport()}
             disabled={loading}
             style={{
-              background: loading ? '#94a3b8' : '#2b6cb0',
+              background: loading ? '#94a3b8' : '#1e3a8a',
               color: '#fff',
               border: 'none',
               padding: '0.75rem 2rem',
@@ -448,7 +456,7 @@ export default function HomePage() {
               fontSize: '1rem',
               fontWeight: 700,
               cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
+              boxShadow: loading ? 'none' : '0 2px 4px rgba(0,0,0,0.2)',
             }}
           >
             {loading ? 'Building Taste Passport...' : `✨ Build Passport for ${destination} Area`}
@@ -463,18 +471,6 @@ export default function HomePage() {
             Stage: {currentProgress.stage.replace('_', ' ').toUpperCase()}
           </div>
           <p style={{ margin: 0, color: '#2d3748' }}>{currentProgress.message}</p>
-          {currentProgress.total && currentProgress.current !== undefined && (
-            <div style={{ marginTop: '0.5rem', background: '#cbd5e0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-              <div
-                style={{
-                  background: '#3182ce',
-                  height: '100%',
-                  width: `${Math.round((currentProgress.current / currentProgress.total) * 100)}%`,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
-          )}
         </div>
       )}
 
@@ -488,14 +484,23 @@ export default function HomePage() {
       {/* Results Section */}
       {result && (
         <div>
-          {/* Metadata & Grounding Banner (Task B) */}
+          {/* Degradation Notice Banner (Task F) */}
+          {result.meta.notice && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', color: '#92400e', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontWeight: 600 }}>
+              ⚠️ {result.meta.notice}
+            </div>
+          )}
+
+          {/* Metadata Banner (Task G: Elapsed time, calls, no violations counter) */}
           <div style={{ background: '#edf2f7', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.85rem' }}>
             <span>⚡ <strong>{result.meta.ms}ms</strong></span>
             <span>📡 <strong>{result.meta.qlooCalls}</strong> Qloo calls</span>
             <span>🤖 <strong>{result.meta.llmCalls}</strong> LLM calls</span>
-            <span style={{ color: '#22543d', background: '#c6f6d5', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
-              ✓ Every place shown comes from Qloo's results ({totalPlacesCount} places verified)
-            </span>
+            {result.meta.groundingViolations === 0 && (
+              <span style={{ color: '#22543d', background: '#c6f6d5', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                ✓ Every place shown comes from Qloo's results ({totalPlacesCount} places verified)
+              </span>
+            )}
             {result.meta.cached && (
               <span style={{ background: '#bee3f8', color: '#2b6cb0', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
                 CACHED
@@ -519,24 +524,22 @@ export default function HomePage() {
 
           {/* First Month Settling Plan */}
           <section style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', marginBottom: '2rem' }}>
-            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem' }}>🗓️ First Month Settling Guide</h3>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>🗓️ First Month Settling Guide</h3>
             <p style={{ margin: 0, lineHeight: 1.6, color: '#334155' }}>{result.firstMonth}</p>
           </section>
 
-          {/* Signal Check Panel (Task A: Honest Lift) */}
+          {/* Signal Check Panel (Task B & H: Qloo-derived single signal enrichment) */}
           <section style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem' }}>🎯 Signal Check (Taste Lift Attribution)</h3>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>🎯 Signal Check (Qloo Taste Attribution)</h3>
               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                Taste lift measures how much this signal shifted recommendations away from generic popular spots in this city.
+                Shows which regional cuisines were uniquely enriched in Qloo's taste graph by each favorite alone.
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
               {result.signalCheck.map((sig, i) => {
-                const isStrong = sig.status === 'strong';
-                const isWeak = sig.status === 'weak';
-                const isNone = sig.status === 'none';
+                const hasImpact = sig.enrichedTags.length > 0;
                 return (
                   <div
                     key={i}
@@ -544,26 +547,12 @@ export default function HomePage() {
                       border: '1px solid #e2e8f0',
                       borderRadius: '6px',
                       padding: '0.75rem',
-                      background: isStrong ? '#f0fff4' : isWeak ? '#fffff0' : '#f8fafc',
+                      background: hasImpact ? '#f0fff4' : '#f8fafc',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{sig.name}</span>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          padding: '0.1rem 0.4rem',
-                          borderRadius: '4px',
-                          background: isStrong ? '#c6f6d5' : isWeak ? '#fefcbf' : '#e2e8f0',
-                          color: isStrong ? '#22543d' : isWeak ? '#744210' : '#64748b',
-                        }}
-                      >
-                        {sig.favoriteLiftPercent}% lift
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: isNone ? '#64748b' : '#2d3748', marginTop: '0.35rem' }}>
-                      {isNone ? 'did not visibly shape results' : `${sig.statusLabel.toUpperCase()} signal • shaped ${sig.matchedCount} top picks`}
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{sig.favoriteName}</div>
+                    <div style={{ fontSize: '0.85rem', color: hasImpact ? '#166534' : '#64748b', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                      {sig.summary}
                     </div>
                   </div>
                 );
@@ -576,36 +565,54 @@ export default function HomePage() {
             {result.categories.map((cat, i) => (
               <section key={i} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                 <div style={{ background: '#f8fafc', padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{cat.title}</h3>
+                      <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{cat.title}</h3>
                       <span
                         style={{
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           padding: '0.2rem 0.5rem',
                           borderRadius: '4px',
-                          background: cat.kind === 'home_cuisine' ? '#bee3f8' : cat.kind === 'stretch_cuisine' ? '#feebc8' : '#e9d8fd',
-                          color: cat.kind === 'home_cuisine' ? '#2b6cb0' : cat.kind === 'stretch_cuisine' ? '#c05621' : '#6b46c1',
+                          background: cat.kind === 'grocery' ? '#fef3c7' : '#e0e7ff',
+                          color: cat.kind === 'grocery' ? '#92400e' : '#3730a3',
                         }}
                       >
-                        {cat.kindLabel.toUpperCase()}
+                        {cat.kindLabel}
                       </span>
                     </div>
 
-                    {/* Taste Lift Badge (Task A) */}
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '4px',
-                        background: cat.tasteLift < 0.3 ? '#edf2f7' : '#d1fae5',
-                        color: cat.tasteLift < 0.3 ? '#475569' : '#065f46',
-                      }}
-                    >
-                      {cat.badge}
-                    </span>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {/* Primary Qloo Enrichment Badge (Task B) */}
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          background: '#dbeafe',
+                          color: '#1e40af',
+                        }}
+                      >
+                        {cat.badge}
+                      </span>
+
+                      {/* Secondary Taste Lift Badge (Task C) */}
+                      {cat.kind !== 'grocery' && (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '4px',
+                            background: cat.rawTasteLift < 0.3 ? '#f1f5f9' : '#dcfce7',
+                            color: cat.rawTasteLift < 0.3 ? '#475569' : '#15803d',
+                          }}
+                        >
+                          {cat.tasteLiftBadge}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <p style={{ margin: 0, fontSize: '0.9rem', color: '#4a5568' }}>{cat.intro}</p>
@@ -629,7 +636,7 @@ export default function HomePage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
                           <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>{place.name}</h4>
                           {place.rating && (
-                            <span style={{ fontSize: '0.85rem', color: '#d69e2e', fontWeight: 700 }}>
+                            <span style={{ fontSize: '0.85rem', color: '#d97706', fontWeight: 700 }}>
                               ★ {place.rating.toFixed(1)}
                             </span>
                           )}
@@ -641,9 +648,12 @@ export default function HomePage() {
                           </div>
                         )}
 
-                        <p style={{ fontSize: '0.85rem', color: '#2d3748', lineHeight: 1.4, margin: '0.5rem 0' }}>
-                          {place.blurb}
-                        </p>
+                        {/* Blurb (Task D: Null blurb shows NO blurb element) */}
+                        {place.blurb !== null && (
+                          <p style={{ fontSize: '0.85rem', color: '#2d3748', lineHeight: 1.4, margin: '0.5rem 0' }}>
+                            {place.blurb}
+                          </p>
+                        )}
 
                         {place.dishes.length > 0 && (
                           <div style={{ fontSize: '0.75rem', color: '#4a5568', marginTop: '0.5rem' }}>
@@ -653,30 +663,6 @@ export default function HomePage() {
                       </div>
 
                       <div style={{ marginTop: '0.75rem', borderTop: '1px solid #edf2f7', paddingTop: '0.5rem' }}>
-                        {place.matchedBy.length > 0 && (
-                          <div style={{ marginBottom: '0.5rem' }}>
-                            <span style={{ fontSize: '0.75rem', color: '#718096', display: 'block', marginBottom: '0.2rem' }}>
-                              Lifted by:
-                            </span>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                              {place.matchedBy.map((m, mi) => (
-                                <span
-                                  key={mi}
-                                  style={{
-                                    fontSize: '0.7rem',
-                                    background: '#e2e8f0',
-                                    color: '#2d3748',
-                                    padding: '0.15rem 0.4rem',
-                                    borderRadius: '3px',
-                                  }}
-                                >
-                                  {m}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
                           {place.phone ? (
                             <span style={{ color: '#4a5568' }}>📞 {place.phone}</span>
@@ -686,7 +672,7 @@ export default function HomePage() {
                               href={place.website}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{ color: '#3182ce', textDecoration: 'none', fontWeight: 600 }}
+                              style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}
                             >
                               Visit Website →
                             </a>
@@ -701,6 +687,11 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Footer Line (Task E) */}
+      <footer style={{ marginTop: '3rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
+        Powered by the Qloo API.
+      </footer>
     </div>
   );
 }

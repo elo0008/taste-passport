@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runPassportPipeline, PipelineError } from '@/lib/pipeline';
 import { rateLimiter } from '@/lib/rate-limit';
+import { QlooApiError } from '@/lib/qloo';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,8 @@ const PassportRequestSchema = z.object({
 });
 
 function getClientIp(req: NextRequest): string {
+  // On Vercel and standard reverse proxies, the platform injects x-forwarded-for,
+  // where the first entry represents the connecting client IP.
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
     return forwarded.split(',')[0].trim();

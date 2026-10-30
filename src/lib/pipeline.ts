@@ -1,11 +1,19 @@
-import { QlooClient } from './qloo';
+import { QlooClient, QlooApiError } from './qloo';
 import { MemoryCache, passportResultCache } from './cache';
 import { rateLimiter } from './rate-limit';
 import { CallBudget, runWithConcurrency } from './concurrency';
 import { filterValidPlaces } from './filters';
-import { planCategories, CategoryIntent } from './planner';
-import { probeTagsForIntentsParallel, AcceptedTag } from './tag-prober';
-import { writeGroundedNarratives, GroundingInputCategory } from './grounding';
+import {
+  inferCuisinesFromTaste,
+  shouldAddGroceryCategory,
+  EnrichedCuisineTag,
+  FavoriteSignalCheck,
+  INDIAN_GROCERY_TAG,
+} from './cuisine-inference';
+import {
+  writeGroundedNarratives,
+  GroundingInputCategory,
+} from './grounding';
 import { resolveSingleFavorite, FavoriteType, TYPE_TO_URN } from './resolve-service';
 
 export type { FavoriteType };
@@ -39,36 +47,29 @@ export interface FinalPlace {
   rating: number | null;
   priceLevel: string | null;
   dishes: string[];
-  matchedBy: string[];
   affinity: number | null;
-  blurb: string;
+  blurb: string | null;
 }
 
 export interface FinalCategory {
   title: string;
-  kind: 'home_cuisine' | 'stretch_cuisine' | 'grocery';
+  kind: 'inferred_cuisine' | 'grocery';
   kindLabel: string;
   tagId: string;
-  tasteLift: number;
-  tasteLiftPercent: number;
+  enrichment: number;
+  cSig: number;
+  cBase: number;
   badge: string;
+  rawTasteLift: number;
+  rawLiftCount: number;
+  tasteLiftBadge: string;
   intro: string;
   places: FinalPlace[];
 }
 
-export interface SignalCheckItem {
-  name: string;
-  favoriteLift: number;
-  favoriteLiftPercent: number;
-  status: 'strong' | 'weak' | 'none';
-  statusLabel: string;
-  matchedCount: number;
-}
-
 export interface PipelineTimings {
   resolveMs: number;
-  planMs: number;
-  tagsMs: number;
+  inferMs: number;
   discoverMs: number;
   writeMs: number;
   totalMs: number;
@@ -78,9 +79,8 @@ export interface PassportResult {
   destination: string;
   resolved: ResolvedFavorite[];
   unresolvedFavorites: UnresolvedFavorite[];
-  plan: CategoryIntent[];
   categories: FinalCategory[];
-  signalCheck: SignalCheckItem[];
+  signalCheck: FavoriteSignalCheck[];
   firstMonth: string;
   meta: {
     qlooCalls: number;
@@ -89,11 +89,15 @@ export interface PassportResult {
     groundingViolations: number;
     repairAttempts: number;
     cached: boolean;
+    narration: 'ai' | 'template';
+    notice?: string;
+    blurbCount: number;
+    nullBlurbCount: number;
     timings: PipelineTimings;
   };
 }
 
-export type PipelineStage = 'resolving' | 'planning' | 'finding_tags' | 'querying_qloo' | 'writing';
+export type PipelineStage = 'resolving' | 'inferring_cuisines' | 'querying_places' | 'writing';
 
 export interface PipelineProgressEvent {
   type: 'progress';
@@ -125,6 +129,7 @@ export async function runPassportPipeline(
     onProgress?: (event: PipelineProgressEvent) => void;
     bypassRateLimit?: boolean;
     forceRefresh?: boolean;
+    client?: QlooClient;
   }
 ): Promise<PassportResult> {
   const startTime = performance.now();
@@ -133,8 +138,7 @@ export async function runPassportPipeline(
 
   const timings: PipelineTimings = {
     resolveMs: 0,
-    planMs: 0,
-    tagsMs: 0,
+    inferMs: 0,
     discoverMs: 0,
     writeMs: 0,
     totalMs: 0,
@@ -157,7 +161,7 @@ export async function runPassportPipeline(
     favs: input.favorites
       .map((f) => `${f.type}:${(f.entityId || f.name).trim().toLowerCase()}`)
       .sort(),
-    version: 'v3.0',
+    version: 'v4.0',
   });
 
   if (!options?.forceRefresh) {
@@ -174,82 +178,87 @@ export async function runPassportPipeline(
     }
   }
 
-  const client = new QlooClient();
-  const budget = new CallBudget(32);
+  let client: QlooClient;
+  try {
+    client = options?.client || new QlooClient();
+  } catch (err: any) {
+    throw new PipelineError(
+      `Qloo client initialization failed: ${QlooApiError.sanitize(err?.message || 'Missing credentials')}`,
+      500
+    );
+  }
+  const budget = new CallBudget(40);
+  let totalQlooCalls = 0;
   let llmCallsCount = 0;
 
-  // 3. Stage: CONCURRENT RESOLVE & PLAN (Performance Optimization)
+  // 3. Stage: RESOLVE FAVORITES
   emit({
     type: 'progress',
     stage: 'resolving',
-    message: `Resolving favorites and planning taste profile in parallel...`,
+    message: `Resolving favorites in Qloo taste graph...`,
   });
 
-  const resolvePlanStart = performance.now();
+  const resolveStart = performance.now();
 
-  const resolveFavoritesPromise = Promise.all(
-    input.favorites.map(async (fav) => {
-      // User-selected confirmation: if entityId was explicitly passed, skip search
-      if (fav.entityId) {
-        return {
-          resolved: true as const,
-          item: {
-            inputName: fav.name,
-            inputType: fav.type,
-            resolvedId: fav.entityId,
-            resolvedName: fav.name,
-            resolvedType: TYPE_TO_URN[fav.type] || fav.type,
-          },
-        };
-      }
-
-      budget.track();
-      try {
-        const candidates = await resolveSingleFavorite(client, fav.name, fav.type);
-        if (candidates.length > 0) {
-          const match = candidates[0];
+  let resolutionResults;
+  try {
+    resolutionResults = await Promise.all(
+      input.favorites.map(async (fav) => {
+        if (fav.entityId) {
           return {
             resolved: true as const,
             item: {
               inputName: fav.name,
               inputType: fav.type,
-              resolvedId: match.entityId,
-              resolvedName: match.name,
-              resolvedType: match.type,
+              resolvedId: fav.entityId,
+              resolvedName: fav.name,
+              resolvedType: TYPE_TO_URN[fav.type] || fav.type,
             },
           };
         }
-      } catch {
-        // Fall through
-      }
 
-      return {
-        resolved: false as const,
-        item: {
-          name: fav.name,
-          type: fav.type,
-          reason: 'Not found in Qloo taste graph',
-        },
-      };
-    })
-  );
+        budget.track();
+        totalQlooCalls++;
+        try {
+          const candidates = await resolveSingleFavorite(client, fav.name, fav.type);
+          if (candidates.length > 0) {
+            const match = candidates[0];
+            return {
+              resolved: true as const,
+              item: {
+                inputName: fav.name,
+                inputType: fav.type,
+                resolvedId: match.entityId,
+                resolvedName: match.name,
+                resolvedType: match.type,
+              },
+            };
+          }
+        } catch (err: any) {
+          if (err instanceof QlooApiError && err.status && err.status >= 500) {
+            throw err;
+          }
+          // Non-500 errors fall through to unresolved
+        }
 
-  const planCategoriesPromise = (async () => {
-    llmCallsCount++;
-    return await planCategories(
-      input.favorites.map((f) => ({ name: f.name, type: f.type })),
-      input.destination
+        return {
+          resolved: false as const,
+          item: {
+            name: fav.name,
+            type: fav.type,
+            reason: 'Not found in Qloo taste graph',
+          },
+        };
+      })
     );
-  })();
+  } catch (err: any) {
+    throw new PipelineError(
+      `Qloo resolution service failed: ${QlooApiError.sanitize(err?.message || 'Unknown network error')}`,
+      502
+    );
+  }
 
-  const [resolutionResults, planResult] = await Promise.all([
-    resolveFavoritesPromise,
-    planCategoriesPromise,
-  ]);
-
-  const resolvePlanDuration = Math.round(performance.now() - resolvePlanStart);
-  timings.resolveMs = resolvePlanDuration;
-  timings.planMs = resolvePlanDuration;
+  timings.resolveMs = Math.round(performance.now() - resolveStart);
 
   const resolved: ResolvedFavorite[] = [];
   const unresolvedFavorites: UnresolvedFavorite[] = [];
@@ -264,218 +273,167 @@ export async function runPassportPipeline(
 
   if (resolved.length < 2) {
     throw new PipelineError(
-      `Could not resolve enough favorites in Qloo's taste database. Resolved ${resolved.length} of ${input.favorites.length}; at least 2 are required to generate recommendations.`,
+      `Could not resolve enough favorites in Qloo's taste database. Resolved ${resolved.length} of ${input.favorites.length}; at least 2 are required.`,
       422
     );
   }
 
-  const resolvedSignalIds = resolved.map((r) => r.resolvedId);
-  const intents = planResult.intents;
-  const culture = planResult.culture;
-
-  // 4. Stage: PARALLEL TAG PROBING WITH GROCERY GATE
+  // 4. Stage: CUISINE INFERENCE VIA QLOO (Task A & B)
   emit({
     type: 'progress',
-    stage: 'finding_tags',
-    message: `Validating category tags in ${input.destination} area across intents...`,
+    stage: 'inferring_cuisines',
+    message: `Inferring cuisines from Qloo taste graph in ${input.destination} area...`,
   });
 
-  const tagsStart = performance.now();
-  const probedIntents = await probeTagsForIntentsParallel(
-    client,
-    intents,
-    culture,
-    input.destination,
-    resolvedSignalIds,
-    budget
-  );
-  timings.tagsMs = Math.round(performance.now() - tagsStart);
-
-  const acceptedCategories: Array<{
-    intent: CategoryIntent;
-    acceptedTag: AcceptedTag;
-  }> = [];
-
-  for (const probed of probedIntents) {
-    if (probed.acceptedTag) {
-      acceptedCategories.push({
-        intent: probed.intent,
-        acceptedTag: probed.acceptedTag,
-      });
-    }
+  const inferStart = performance.now();
+  let inferenceRes;
+  try {
+    inferenceRes = await inferCuisinesFromTaste(
+      client,
+      input.destination,
+      resolved.map((r) => ({ resolvedId: r.resolvedId, resolvedName: r.resolvedName }))
+    );
+    totalQlooCalls += inferenceRes.qlooCalls;
+  } catch (err: any) {
+    throw new PipelineError(
+      `Qloo cuisine inference failed: ${QlooApiError.sanitize(err?.message || 'Network error')}`,
+      502
+    );
   }
 
-  // Fallback if no category tags were accepted
-  if (acceptedCategories.length === 0) {
-    acceptedCategories.push({
-      intent: {
-        kind: 'home_cuisine',
-        keyword: 'indian',
-        reason: `Reliable authentic dining in the ${input.destination} area.`,
-      },
-      acceptedTag: {
-        tagId: 'urn:tag:genre:place:restaurant:indian',
-        tagName: 'Indian',
-        inCityCount: 10,
-      },
-    });
-  }
+  timings.inferMs = Math.round(performance.now() - inferStart);
 
-  // 5. Stage: DISCOVER & TASTE LIFT COMPUTATION (Task A)
+  const topCuisines = inferenceRes.topCuisines;
+  const signalCheck = inferenceRes.signalCheck;
+
+  // 5. Stage: QUERY PLACES PER INFERRED CUISINE + GROCERY RULE (Task B & C)
   emit({
     type: 'progress',
-    stage: 'querying_qloo',
-    message: `Querying Qloo taste intelligence and calculating taste lift...`,
+    stage: 'querying_places',
+    message: `Retrieving top places and calculating raw taste lift...`,
   });
 
   const discoverStart = performance.now();
 
-  // Find primary home cuisine category (first home_cuisine or first category)
-  const primaryCategory =
-    acceptedCategories.find((c) => c.intent.kind === 'home_cuisine') || acceptedCategories[0];
-  const primaryTagId = primaryCategory.acceptedTag.tagId;
+  interface CandidateCategoryConfig {
+    tagId: string;
+    title: string;
+    kind: 'inferred_cuisine' | 'grocery';
+    kindLabel: string;
+    enrichment: number;
+    cSig: number;
+    cBase: number;
+    isRuleBasedGrocery?: boolean;
+  }
 
-  // Setup storage for queries
-  const tagBaselines = new Map<string, string[]>(); // tagId -> baselineIds
-  const categoryCombinedPlaces = new Map<string, any[]>(); // tagId -> combined raw entities
-  const singleSignalPlaces = new Map<string, any[]>(); // resolvedName -> top places for that favorite
+  const categoryConfigs: CandidateCategoryConfig[] = topCuisines.map((t) => ({
+    tagId: t.id,
+    title: t.name,
+    kind: 'inferred_cuisine',
+    kindLabel: 'Qloo Taste Inferred',
+    enrichment: t.enrichment,
+    cSig: t.cSig,
+    cBase: t.cBase,
+  }));
 
-  // Prepare batch of tasks
-  const discoveryTasks: Array<() => Promise<void>> = [];
+  // Check Grocery Rule (Task B)
+  const shouldAddGrocery = shouldAddGroceryCategory(topCuisines[0]);
+  if (shouldAddGrocery) {
+    categoryConfigs.push({
+      tagId: INDIAN_GROCERY_TAG,
+      title: 'Indian Grocery',
+      kind: 'grocery',
+      kindLabel: 'Rule-based: grocery stop (not Qloo-inferred)',
+      enrichment: 1.0,
+      cSig: 0,
+      cBase: 0,
+      isRuleBasedGrocery: true,
+    });
+  }
 
-  // A) Category queries (Baseline + Combined for each accepted tag)
-  for (const cat of acceptedCategories) {
-    const tagId = cat.acceptedTag.tagId;
+  const resolvedSignalIds = resolved.map((r) => r.resolvedId);
+  const tagBaselines = new Map<string, string[]>();
+  const categoryCombinedRaw = new Map<string, any[]>();
 
+  const placeQueryTasks: Array<() => Promise<void>> = [];
+
+  for (const cfg of categoryConfigs) {
     // Combined query
-    discoveryTasks.push(async () => {
+    placeQueryTasks.push(async () => {
       budget.track();
+      totalQlooCalls++;
       try {
         const res = await client.insights({
           filterLocationQuery: input.destination,
-          filterTags: tagId,
-          signalEntities: resolvedSignalIds,
+          filterTags: cfg.tagId,
+          signalEntities: cfg.isRuleBasedGrocery ? undefined : resolvedSignalIds,
           take: 10,
         });
         const entities = res?.results?.entities || (Array.isArray(res?.results) ? res.results : []);
-        categoryCombinedPlaces.set(tagId, entities);
+        categoryCombinedRaw.set(cfg.tagId, entities);
       } catch {
-        categoryCombinedPlaces.set(tagId, []);
+        categoryCombinedRaw.set(cfg.tagId, []);
       }
     });
 
-    // Baseline query (tag + city, NO signals)
-    discoveryTasks.push(async () => {
-      const cacheBaselineKey = `baseline:${tagId}:${input.destination.trim().toLowerCase()}`;
+    // Baseline query (NO signals)
+    placeQueryTasks.push(async () => {
+      const cacheBaselineKey = `baseline:${cfg.tagId}:${input.destination.trim().toLowerCase()}`;
       const cached = baselineCache.get<string[]>(cacheBaselineKey);
       if (cached) {
-        tagBaselines.set(tagId, cached);
+        tagBaselines.set(cfg.tagId, cached);
         return;
       }
 
       budget.track();
+      totalQlooCalls++;
       try {
         const res = await client.insights({
           filterLocationQuery: input.destination,
-          filterTags: tagId,
+          filterTags: cfg.tagId,
           take: 10,
         });
         const entities = res?.results?.entities || (Array.isArray(res?.results) ? res.results : []);
         const ids = entities.map((e: any) => e.entity_id || e.id).filter(Boolean);
-        tagBaselines.set(tagId, ids);
+        tagBaselines.set(cfg.tagId, ids);
         baselineCache.set(cacheBaselineKey, ids, 24 * 60 * 60 * 1000);
       } catch {
-        tagBaselines.set(tagId, []);
+        tagBaselines.set(cfg.tagId, []);
       }
     });
   }
 
-  // B) Single-signal queries on PRIMARY category only for attribution
-  for (const fav of resolved) {
-    discoveryTasks.push(async () => {
-      budget.track();
-      try {
-        const res = await client.insights({
-          filterLocationQuery: input.destination,
-          filterTags: primaryTagId,
-          signalEntities: [fav.resolvedId],
-          take: 10,
-        });
-        const entities = res?.results?.entities || (Array.isArray(res?.results) ? res.results : []);
-        singleSignalPlaces.set(fav.resolvedName, entities);
-      } catch {
-        singleSignalPlaces.set(fav.resolvedName, []);
-      }
-    });
-  }
+  await runWithConcurrency(placeQueryTasks, 6);
 
-  await runWithConcurrency(discoveryTasks, 6);
-
-  // Compute Favorite Lift & Status (Task A)
-  const primaryBaselineIds = new Set<string>(tagBaselines.get(primaryTagId) || []);
-
-  const signalCheck: SignalCheckItem[] = resolved.map((fav) => {
-    const sPlaces = singleSignalPlaces.get(fav.resolvedName) || [];
-    const sIds = sPlaces.map((p: any) => p.entity_id || p.id).filter(Boolean);
-
-    let nonBaselineCount = 0;
-    for (const id of sIds) {
-      if (!primaryBaselineIds.has(id)) {
-        nonBaselineCount++;
-      }
-    }
-
-    const favoriteLift = sIds.length > 0 ? nonBaselineCount / sIds.length : 0;
-    const favoriteLiftPercent = Math.round(favoriteLift * 100);
-
-    let status: 'strong' | 'weak' | 'none' = 'none';
-    if (favoriteLift >= 0.5) {
-      status = 'strong';
-    } else if (favoriteLift >= 0.2) {
-      status = 'weak';
-    }
-
-    const statusLabel = status === 'none' ? 'did not visibly shape results' : status;
-
-    return {
-      name: fav.resolvedName,
-      favoriteLift,
-      favoriteLiftPercent,
-      status,
-      statusLabel,
-      matchedCount: 0, // updated after place assignment
-    };
-  });
-
-  // Helper map: for each favorite, its TOP 5 places that are NOT in primaryBaselineIds
-  const favoriteTopNonBaseline = new Map<string, Set<string>>();
-  for (const fav of resolved) {
-    const sPlaces = singleSignalPlaces.get(fav.resolvedName) || [];
-    const top5Ids = sPlaces.slice(0, 5).map((p: any) => p.entity_id || p.id).filter(Boolean);
-    const nonBaselineTop5 = new Set<string>(top5Ids.filter((id) => !primaryBaselineIds.has(id)));
-    favoriteTopNonBaseline.set(fav.resolvedName, nonBaselineTop5);
-  }
-
-  // 6. Stage: ASSEMBLE, CROSS-CATEGORY DEDUPLICATION & BACKFILL (Task C)
-  // Priority order: home_cuisine (in plan order) > stretch_cuisine > grocery
-  const priorityOrdered = [...acceptedCategories].sort((a, b) => {
-    const score = (kind: string) => (kind === 'home_cuisine' ? 1 : kind === 'stretch_cuisine' ? 2 : 3);
-    return score(a.intent.kind) - score(b.intent.kind);
-  });
-
+  // 6. Cross-category deduplication, backfilling, and raw lift computation (Task C)
   const assignedPlaceIds = new Set<string>();
   const assembledCategories: FinalCategory[] = [];
   const groundingInputCategories: GroundingInputCategory[] = [];
 
-  for (const cat of priorityOrdered) {
-    const tagId = cat.acceptedTag.tagId;
-    const rawPlaces = categoryCombinedPlaces.get(tagId) || [];
-    const baselineIds = new Set<string>(tagBaselines.get(tagId) || []);
+  for (const cfg of categoryConfigs) {
+    const rawPlaces = categoryCombinedRaw.get(cfg.tagId) || [];
+    const baselineIds = new Set<string>(tagBaselines.get(cfg.tagId) || []);
 
-    // Filter valid places (drop closed, drop banquet/convention)
+    // Task C: Compute tasteLift on the RAW top-10 BEFORE cross-category dedupe/backfill
+    const rawCombined10Ids = rawPlaces.slice(0, 10).map((p: any) => p.entity_id || p.id || '').filter(Boolean);
+    let intersectCount = 0;
+    for (const id of rawCombined10Ids) {
+      if (baselineIds.has(id)) intersectCount++;
+    }
+
+    const rawTasteLift =
+      rawCombined10Ids.length > 0 ? 1 - intersectCount / rawCombined10Ids.length : 0;
+    const rawLiftCount = rawCombined10Ids.length - intersectCount;
+
+    const tasteLiftBadge =
+      rawTasteLift < 0.3
+        ? 'mostly popularity-led'
+        : `${rawLiftCount} of the top 10 wouldn't appear without your taste`;
+
+    // Filter valid places (drop closed, drop banquet halls)
     const validPlaces = filterValidPlaces(rawPlaces);
 
-    // Cross-category deduplication with backfill up to 6
+    // Cross-category deduplication: exclude already assigned place IDs
     const availablePlaces = validPlaces.filter((p) => {
       const pId = p.entity_id || p.id || '';
       return pId && !assignedPlaceIds.has(pId);
@@ -488,53 +446,34 @@ export async function runPassportPipeline(
       continue;
     }
 
-    // Mark as assigned
     for (const p of selectedPlaces) {
       const pId = p.entity_id || p.id || '';
       if (pId) assignedPlaceIds.add(pId);
     }
 
-    // Taste Lift Calculation for Category (Task A)
-    const combinedIds = selectedPlaces.map((p) => p.entity_id || p.id || '');
-    let intersectCount = 0;
-    for (const id of combinedIds) {
-      if (baselineIds.has(id)) intersectCount++;
-    }
-
-    const tasteLift = combinedIds.length > 0 ? 1 - intersectCount / combinedIds.length : 0;
-    const tasteLiftPercent = Math.round(tasteLift * 100);
-    const liftedCount = combinedIds.length - intersectCount;
-
-    let badge = '';
-    if (tasteLift < 0.3) {
-      badge = 'mostly popularity-led';
-    } else {
-      badge = `Taste lift ${tasteLiftPercent}% (${liftedCount} of ${combinedIds.length} picks wouldn't appear without your taste)`;
-    }
-
-    const isPrimary = cat.acceptedTag.tagId === primaryTagId;
+    // Badge text
+    const badge = cfg.isRuleBasedGrocery
+      ? 'Rule-based: cultural grocery stop'
+      : `Qloo ranks this cuisine ${cfg.enrichment.toFixed(1)}x higher for your taste than for a generic ${input.destination} baseline (${cfg.cSig} of 50 places)`;
 
     const finalPlaces: FinalPlace[] = selectedPlaces.map((p: any) => {
       const pId = p.entity_id || p.id || '';
 
-      // MatchedBy rule: for primary category only, attach favorites where place is in top 5 of S_f and NOT in baselineIds
-      const matchedBy: string[] = [];
-      if (isPrimary) {
-        for (const fav of resolved) {
-          const nonBaselineTop5 = favoriteTopNonBaseline.get(fav.resolvedName);
-          if (nonBaselineTop5?.has(pId)) {
-            matchedBy.push(fav.resolvedName);
-          }
-        }
-      }
-
-      // Dishes: clean string extraction from specialty_dishes
       let dishes: string[] = [];
       if (Array.isArray(p.properties?.specialty_dishes)) {
         dishes = p.properties.specialty_dishes
           .map((d: any) => (typeof d === 'string' ? d : d?.name || ''))
           .filter((d: any): d is string => typeof d === 'string' && d.trim().length > 0)
           .slice(0, 3);
+      }
+
+      let description: string | undefined = undefined;
+      if (typeof p.properties?.description === 'string' && p.properties.description.trim()) {
+        description = p.properties.description.trim();
+      } else if (Array.isArray(p.properties?.short_descriptions) && p.properties.short_descriptions[0]) {
+        description = String(p.properties.short_descriptions[0]);
+      } else if (typeof p.properties?.cuisine_description === 'string') {
+        description = p.properties.cuisine_description;
       }
 
       return {
@@ -546,78 +485,77 @@ export async function runPassportPipeline(
         rating: typeof p.properties?.business_rating === 'number' ? p.properties.business_rating : null,
         priceLevel: p.properties?.price_level || (p.properties?.price_range?.currency ? '$' : null),
         dishes,
-        matchedBy,
         affinity: typeof p.popularity === 'number' ? p.popularity : null,
-        blurb: '',
+        blurb: null, // will be assigned in writing stage
       };
     });
 
-    const kindLabel =
-      cat.intent.kind === 'home_cuisine'
-        ? 'Home cuisine'
-        : cat.intent.kind === 'stretch_cuisine'
-        ? 'Nearby cuisine'
-        : 'Grocery';
-
     assembledCategories.push({
-      title: cat.acceptedTag.tagName,
-      kind: cat.intent.kind,
-      kindLabel,
-      tagId: cat.acceptedTag.tagId,
-      tasteLift,
-      tasteLiftPercent,
+      title: cfg.title,
+      kind: cfg.kind,
+      kindLabel: cfg.kindLabel,
+      tagId: cfg.tagId,
+      enrichment: cfg.enrichment,
+      cSig: cfg.cSig,
+      cBase: cfg.cBase,
       badge,
+      rawTasteLift,
+      rawLiftCount,
+      tasteLiftBadge,
       intro: '',
       places: finalPlaces,
     });
 
     groundingInputCategories.push({
-      title: cat.acceptedTag.tagName,
-      kind: cat.intent.kind,
-      tagId: cat.acceptedTag.tagId,
-      places: finalPlaces.map((p) => ({
-        id: p.id,
-        name: p.name,
-        address: p.address,
-        dishes: p.dishes,
-        matchedBy: p.matchedBy,
-        description: '',
-      })),
-    });
-  }
-
-  // Update matchedCount on SignalCheck
-  for (const sig of signalCheck) {
-    let count = 0;
-    for (const cat of assembledCategories) {
-      for (const p of cat.places) {
-        if (p.matchedBy.includes(sig.name)) {
-          count++;
+      title: cfg.title,
+      kind: cfg.kind,
+      tagId: cfg.tagId,
+      places: finalPlaces.map((p) => {
+        const rawPlace = selectedPlaces.find((sp: any) => (sp.entity_id || sp.id) === p.id);
+        let desc: string | undefined = undefined;
+        if (typeof rawPlace?.properties?.description === 'string') {
+          desc = rawPlace.properties.description;
+        } else if (Array.isArray(rawPlace?.properties?.short_descriptions)) {
+          desc = rawPlace.properties.short_descriptions[0];
         }
-      }
-    }
-    sig.matchedCount = count;
+        return {
+          id: p.id,
+          name: p.name,
+          address: p.address,
+          dishes: p.dishes,
+          description: desc,
+        };
+      }),
+    });
   }
 
   timings.discoverMs = Math.round(performance.now() - discoverStart);
 
-  // 7. Stage: GROUNDED WRITING (Task B)
+  // 7. Stage: GROUNDED COMMENTARY & DEGRADATION (Task B, D, F)
   emit({
     type: 'progress',
     stage: 'writing',
-    message: 'Composing grounded commentary and first-month settling guide...',
+    message: 'Composing grounded commentary and settling guide...',
   });
 
   const writeStart = performance.now();
-  llmCallsCount++;
-
-  const { output: writtenNarratives, groundingViolations, repairAttempts } = await writeGroundedNarratives(
+  const {
+    output: writtenNarratives,
+    groundingViolations,
+    repairAttempts,
+    narration,
+  } = await writeGroundedNarratives(
     groundingInputCategories,
     resolved.map((r) => r.resolvedName),
     input.destination
   );
 
   timings.writeMs = Math.round(performance.now() - writeStart);
+  if (narration === 'ai') {
+    llmCallsCount = 1;
+  } else {
+    llmCallsCount = 0;
+  }
 
   // Merge blurbs and intros into assembled categories
   const writtenCategoryMap = new Map<string, (typeof writtenNarratives.categories)[0]>();
@@ -625,18 +563,28 @@ export async function runPassportPipeline(
     writtenCategoryMap.set(c.tagId, c);
   }
 
+  let blurbCount = 0;
+  let nullBlurbCount = 0;
+
   for (const cat of assembledCategories) {
     const writtenCat = writtenCategoryMap.get(cat.tagId);
     if (writtenCat) {
       cat.intro = writtenCat.intro;
       const blurbMap = new Map(writtenCat.places.map((p) => [p.id, p.blurb]));
       for (const place of cat.places) {
-        place.blurb = blurbMap.get(place.id) || `Authentic spot in the ${input.destination} area.`;
+        const b = blurbMap.get(place.id) ?? null;
+        place.blurb = b;
+        if (b !== null) {
+          blurbCount++;
+        } else {
+          nullBlurbCount++;
+        }
       }
     } else {
-      cat.intro = `Top-rated authentic ${cat.title} selections in the ${input.destination} area.`;
+      cat.intro = `${cat.title} dining selections in the ${input.destination} area.`;
       for (const place of cat.places) {
-        place.blurb = `Authentic spot in the ${input.destination} area.`;
+        place.blurb = null;
+        nullBlurbCount++;
       }
     }
   }
@@ -648,17 +596,23 @@ export async function runPassportPipeline(
     destination: input.destination,
     resolved,
     unresolvedFavorites,
-    plan: intents,
     categories: assembledCategories,
     signalCheck,
     firstMonth: writtenNarratives.firstMonth,
     meta: {
-      qlooCalls: budget.getCalls(),
+      qlooCalls: totalQlooCalls,
       llmCalls: llmCallsCount,
       ms: totalDurationMs,
       groundingViolations,
       repairAttempts,
       cached: false,
+      narration,
+      notice:
+        narration === 'template'
+          ? 'AI descriptions unavailable right now; showing data only'
+          : undefined,
+      blurbCount,
+      nullBlurbCount,
       timings,
     },
   };
