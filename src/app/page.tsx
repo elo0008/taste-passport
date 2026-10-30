@@ -413,25 +413,39 @@ export default function HomePage() {
                             padding: '0.65rem 0.85rem',
                             cursor: 'pointer',
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.2rem',
+                            gap: '0.65rem',
+                            alignItems: 'flex-start',
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong style={{ fontSize: '0.9rem' }}>{cand.name}</strong>
-                            {cand.year && (
-                              <span style={{ fontSize: '0.75rem', background: '#e2e8f0', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-                                {cand.year}
-                              </span>
-                            )}
-                          </div>
-                          {cand.description && (
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3, maxHeight: '2.6em', overflow: 'hidden' }}>
-                              {cand.description}
+                          {cand.imageUrl ? (
+                            <img
+                              src={cand.imageUrl}
+                              alt={cand.name}
+                              style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, background: '#e2e8f0' }}
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{ width: '44px', height: '44px', background: '#f1f5f9', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0, color: '#94a3b8' }}>
+                              🖼️
                             </div>
                           )}
-                          <div style={{ fontSize: '0.7rem', color: isSelected ? '#1d4ed8' : '#94a3b8', marginTop: '0.25rem', fontWeight: 600 }}>
-                            {isSelected ? '✓ Selected' : 'Click to select'}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <strong style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cand.name}</strong>
+                              {cand.year && (
+                                <span style={{ fontSize: '0.75rem', background: '#e2e8f0', padding: '0.1rem 0.35rem', borderRadius: '4px', marginLeft: '0.25rem' }}>
+                                  {cand.year}
+                                </span>
+                              )}
+                            </div>
+                            {cand.description && (
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3, maxHeight: '2.6em', overflow: 'hidden', marginTop: '0.15rem' }}>
+                                {cand.description}
+                              </div>
+                            )}
+                            <div style={{ fontSize: '0.7rem', color: isSelected ? '#1d4ed8' : '#94a3b8', marginTop: '0.25rem', fontWeight: 600 }}>
+                              {isSelected ? '✓ Selected' : 'Click to select'}
+                            </div>
                           </div>
                         </div>
                       );
@@ -701,6 +715,24 @@ export default function HomePage() {
                       }}
                     >
                       <div>
+                        {place.imageUrl ? (
+                          <div style={{ width: '100%', height: '140px', marginBottom: '0.75rem', borderRadius: '4px', overflow: 'hidden', background: '#f1f5f9' }}>
+                            <img
+                              src={place.imageUrl}
+                              alt={place.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                const parent = (e.target as HTMLElement).parentElement;
+                                if (parent) parent.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ width: '100%', height: '70px', marginBottom: '0.75rem', borderRadius: '4px', background: '#f8fafc', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>
+                            🍽️ Photo not available
+                          </div>
+                        )}
+
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.25rem' }}>
                           <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>{place.name}</h4>
                           {place.rating && (
