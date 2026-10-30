@@ -17,7 +17,13 @@ export function Stepper({ currentStep }: StepperProps) {
           }`}
         >
           <span className="step-badge" aria-hidden="true">
-            {currentStep > 1 ? '✓' : '1'}
+            {currentStep > 1 ? (
+              <svg style={{ width: '12px', height: '12px', strokeWidth: 3 }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              '1'
+            )}
           </span>
           <span>Destination &amp; Favorites</span>
         </div>
@@ -31,7 +37,13 @@ export function Stepper({ currentStep }: StepperProps) {
           }`}
         >
           <span className="step-badge" aria-hidden="true">
-            {currentStep > 2 ? '✓' : '2'}
+            {currentStep > 2 ? (
+              <svg style={{ width: '12px', height: '12px', strokeWidth: 3 }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              '2'
+            )}
           </span>
           <span>Confirm Cultural Matches</span>
         </div>

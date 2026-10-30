@@ -25,7 +25,9 @@ export function PlaceCard({ place }: PlaceCardProps) {
         <div className="place-image-scrim" />
         {typeof place.rating === 'number' && (
           <div className="place-rating-badge" title={`Rating: ${place.rating.toFixed(1)}`}>
-            <span className="rating-star-icon">★</span>
+            <svg style={{ width: '12px', height: '12px', color: '#F59E0B' }} viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
             <span>{place.rating.toFixed(1)}</span>
           </div>
         )}
@@ -35,8 +37,12 @@ export function PlaceCard({ place }: PlaceCardProps) {
         <h4 className="place-title">{place.name}</h4>
 
         {place.address && (
-          <div className="place-address">
-            📍 {place.address}
+          <div className="place-address" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg style={{ width: '14px', height: '14px', flexShrink: 0, color: 'var(--color-ink-muted)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span>{place.address}</span>
           </div>
         )}
 

@@ -81,7 +81,7 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
           <div className="passport-stamp teal" style={{ marginBottom: '8px' }}>
             ITINERARY
           </div>
-          <h2 id="resultsHeading" tabIndex={-1} style={{ margin: '0 0 6px 0', fontSize: '1.65rem', fontWeight: 700 }}>
+          <h2 id="resultsHeading" tabIndex={-1} style={{ margin: '0 0 6px 0', fontSize: '1.65rem', fontWeight: 700, outline: 'none' }}>
             First Month Settling Guide
           </h2>
           <p style={{ fontSize: '0.88rem', color: 'var(--color-ink-muted)', margin: 0 }}>
@@ -96,25 +96,23 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
               <h4 className="week-card-title">{w.heading}</h4>
               <p className="week-card-copy">{w.sentence}</p>
 
-              {w.places.length > 0 && (
-                <div className="week-places-list">
-                  {w.places.map((pl) => (
-                    <a
-                      key={pl.id}
-                      href={`#place-${pl.id}`}
-                      onClick={(e) => handlePlaceScroll(e, pl.id)}
-                      className="week-place-anchor"
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {pl.name}
-                      </span>
-                      <svg className="ui-icon" viewBox="0 0 24 24">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </a>
-                  ))}
-                </div>
-              )}
+              <div className="week-places-list" style={w.places.length === 0 ? { borderTop: 'none' } : undefined}>
+                {w.places.map((pl) => (
+                  <a
+                    key={pl.id}
+                    href={`#place-${pl.id}`}
+                    onClick={(e) => handlePlaceScroll(e, pl.id)}
+                    className="week-place-anchor"
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pl.name}
+                    </span>
+                    <svg className="ui-icon" viewBox="0 0 24 24">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </a>
+                ))}
+              </div>
             </article>
           ))}
         </div>
@@ -129,7 +127,7 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
         <div className="passport-stamp teal" style={{ marginBottom: '8px' }}>
           ITINERARY
         </div>
-        <h2 id="resultsHeading" tabIndex={-1} style={{ margin: '0 0 6px 0', fontSize: '1.65rem', fontWeight: 700 }}>
+        <h2 id="resultsHeading" tabIndex={-1} style={{ margin: '0 0 6px 0', fontSize: '1.65rem', fontWeight: 700, outline: 'none' }}>
           First Month Settling Guide
         </h2>
         <p style={{ fontSize: '0.88rem', color: 'var(--color-ink-muted)', margin: 0 }}>

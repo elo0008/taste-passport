@@ -57,11 +57,44 @@ export function CandidateCard({ candidate, isSelected, onSelect, onKeyDown }: Ca
             <div className="candidate-name">{candidate.name}</div>
           </div>
 
-          {(candidate.disambiguation || candidate.type) && (
-            <span className="candidate-tag-type">
-              {candidate.disambiguation || candidate.type}
-            </span>
-          )}
+          {(() => {
+            const disambig = candidate.disambiguation?.trim();
+            const nameNorm = candidate.name.trim().toLowerCase();
+            const yearStr = candidate.year ? String(candidate.year) : null;
+
+            // Check if disambiguation repeats year or candidate name
+            const isDisambigYear = Boolean(disambig && (/^\d{4}$/.test(disambig) || (yearStr && disambig === yearStr)));
+            const isDisambigName = Boolean(
+              disambig &&
+                (disambig.toLowerCase() === nameNorm ||
+                  (candidate.name.length > 5 && nameNorm.includes(disambig.toLowerCase())))
+            );
+
+            let secondaryTag: string | null = null;
+            if (disambig && !isDisambigYear && !isDisambigName) {
+              secondaryTag = disambig;
+            } else if (candidate.type) {
+              const cleanType = candidate.type.replace(/^.*:/, '').replace(/_/g, ' ').trim();
+              const tNorm = cleanType.toLowerCase();
+              if (
+                tNorm !== nameNorm &&
+                !/^\d{4}$/.test(cleanType) &&
+                (!yearStr || tNorm !== yearStr) &&
+                tNorm !== 'entity' &&
+                tNorm !== 'unknown'
+              ) {
+                secondaryTag = cleanType.toUpperCase();
+              }
+            }
+
+            if (!secondaryTag) return null;
+
+            return (
+              <span className="candidate-tag-type">
+                {secondaryTag}
+              </span>
+            );
+          })()}
 
           {candidate.description && (
             <div className="candidate-desc-clamped">

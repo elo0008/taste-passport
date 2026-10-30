@@ -274,9 +274,6 @@ export function FavoritesForm({
                   type="button"
                   onClick={() => handleApplyPreset(preset)}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
                     padding: '6px 14px',
                     background: 'var(--bg-subtle)',
                     border: '1px solid var(--color-hairline)',
@@ -284,10 +281,16 @@ export function FavoritesForm({
                     fontSize: '0.82rem',
                     fontWeight: 500,
                     color: 'var(--color-ink)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
                     transition: 'all var(--transition-fast)',
                   }}
                 >
-                  <span>⚡ {preset.label}</span>
+                  <svg style={{ width: '13px', height: '13px', color: 'var(--color-terracotta)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  <span>{preset.label}</span>
                 </button>
               ))}
             </div>
@@ -410,7 +413,10 @@ export function FavoritesForm({
                           border: '1px solid var(--color-hairline)',
                         }}
                       >
-                        ✎
+                        <svg style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
                       </button>
                       <button
                         type="button"
@@ -430,7 +436,10 @@ export function FavoritesForm({
                           cursor: favorites.length <= 3 ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        ✕
+                        <svg style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -438,47 +447,44 @@ export function FavoritesForm({
               })}
             </div>
 
-            {/* Add / Edit Dock Card */}
+            {/* Add / Edit Dock Card (matching Image 1 design) */}
             {(canAddMore || editingIndex !== null) && (
               <div
                 style={{
-                  background: 'var(--bg-page)',
-                  border: '2px dashed var(--color-hairline-strong)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: '20px',
+                  background: 'rgba(250, 248, 245, 0.85)',
+                  border: '1.5px dashed #D6CEC3',
+                  borderRadius: '16px',
+                  padding: '22px 24px',
                 }}
               >
                 <div
                   style={{
-                    fontSize: '0.92rem',
-                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
                     color: 'var(--color-ink)',
-                    marginBottom: '12px',
+                    marginBottom: '16px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '6px',
                   }}
                 >
-                  <svg className="ui-icon" viewBox="0 0 24 24">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  <span>{editingIndex !== null ? 'Edit Favorite' : 'Add Another Favorite'}</span>
+                  <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>+</span>
+                  <span>{editingIndex !== null ? 'Edit favorite' : 'Add another favorite'}</span>
                 </div>
 
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto',
+                    display: 'flex',
                     gap: '12px',
                     alignItems: 'center',
+                    flexWrap: 'wrap',
                   }}
                 >
                   <input
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
-                    placeholder="Name of artist, movie, show, or author..."
+                    placeholder="Name of favorite..."
                     aria-label="Name of favorite"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -487,13 +493,15 @@ export function FavoritesForm({
                       }
                     }}
                     style={{
-                      height: '46px',
+                      flex: '1 1 240px',
+                      height: '48px',
                       padding: '0 16px',
-                      background: 'var(--bg-surface)',
-                      border: '1.5px solid var(--color-hairline-strong)',
-                      borderRadius: 'var(--radius-md)',
+                      background: '#FFFFFF',
+                      border: '1px solid #E5DFD5',
+                      borderRadius: '12px',
                       color: 'var(--color-ink)',
                       fontSize: '0.95rem',
+                      outline: 'none',
                     }}
                   />
 
@@ -502,19 +510,21 @@ export function FavoritesForm({
                     onChange={(e) => setInputType(e.target.value as FavoriteType)}
                     aria-label="Category of favorite"
                     style={{
-                      height: '46px',
-                      padding: '0 14px',
-                      background: 'var(--bg-surface)',
-                      border: '1.5px solid var(--color-hairline-strong)',
-                      borderRadius: 'var(--radius-md)',
+                      width: '180px',
+                      height: '48px',
+                      padding: '0 16px',
+                      background: '#FFFFFF',
+                      border: '1px solid #E5DFD5',
+                      borderRadius: '12px',
                       color: 'var(--color-ink)',
-                      fontSize: '0.9rem',
+                      fontSize: '0.92rem',
+                      outline: 'none',
                     }}
                   >
                     <option value="movie">Movie</option>
                     <option value="artist">Artist / Musician</option>
                     <option value="person">Author / Person</option>
-                    <option value="tv_show">TV Show / Series</option>
+                    <option value="tv_show">TV Show</option>
                   </select>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -522,33 +532,39 @@ export function FavoritesForm({
                       type="button"
                       onClick={handleSubmitDock}
                       style={{
-                        height: '46px',
-                        padding: '0 20px',
+                        height: '48px',
+                        padding: '0 24px',
                         background: 'var(--color-terracotta)',
                         color: '#FFFFFF',
                         fontWeight: 600,
                         fontSize: '0.92rem',
-                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        borderRadius: '12px',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 8px rgba(216, 96, 40, 0.25)',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(216, 96, 40, 0.25)',
                       }}
                     >
-                      {editingIndex !== null ? 'Save Changes' : '+ Add'}
+                      <svg style={{ width: '15px', height: '15px', strokeWidth: 2.5 }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>{editingIndex !== null ? 'Save Changes' : 'Add Favorite'}</span>
                     </button>
                     {editingIndex !== null && (
                       <button
                         type="button"
                         onClick={handleCancelEdit}
                         style={{
-                          height: '46px',
+                          height: '48px',
                           padding: '0 16px',
-                          background: 'var(--bg-subtle)',
-                          border: '1px solid var(--color-hairline)',
-                          borderRadius: 'var(--radius-md)',
+                          background: '#FFFFFF',
+                          border: '1px solid #E5DFD5',
+                          borderRadius: '12px',
                           fontSize: '0.88rem',
                           color: 'var(--color-ink-muted)',
+                          cursor: 'pointer',
                         }}
                       >
                         Cancel
@@ -562,25 +578,49 @@ export function FavoritesForm({
                     style={{
                       color: 'var(--color-brick)',
                       fontSize: '0.84rem',
-                      marginTop: '10px',
+                      marginTop: '12px',
                       fontWeight: 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
                     }}
                     role="alert"
                   >
-                    ⚠️ {validationError}
+                    <svg style={{ width: '14px', height: '14px', flexShrink: 0 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <span>{validationError}</span>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Primary CTA */}
+          {/* Primary CTA (Image 1 design) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               type="button"
               className="btn-primary-large"
               onClick={onFindMatches}
               disabled={!canFindMatches}
+              style={{
+                width: '100%',
+                height: '52px',
+                borderRadius: 'var(--radius-pill)',
+                fontSize: '1.02rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: 'var(--color-teal)',
+                color: '#FFFFFF',
+                border: 'none',
+                cursor: canFindMatches ? 'pointer' : 'not-allowed',
+                boxShadow: '0 2px 8px rgba(19, 78, 74, 0.2)',
+              }}
             >
               {resolving ? (
                 <>
@@ -592,7 +632,7 @@ export function FavoritesForm({
               ) : (
                 <>
                   <span>Find My Matches</span>
-                  <svg className="ui-icon" viewBox="0 0 24 24">
+                  <svg style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
                   </svg>
