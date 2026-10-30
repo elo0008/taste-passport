@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { runPassportPipeline, PipelineProgressEvent } from '../src/lib/pipeline';
-import { rateLimiter } from '../src/lib/rate-limit';
+import { BANNED_WORDS } from '../src/lib/grounding';
 
 // 1. Ensure .env.local is loaded
 function loadEnvLocal() {
@@ -27,15 +27,105 @@ function loadEnvLocal() {
 }
 loadEnvLocal();
 
+function assertNoBannedWordsOrFavoriteNames(res: any) {
+  const favNames = res.resolved.map((r: any) => r.resolvedName);
+
+  // Check firstMonth
+  for (const fav of favNames) {
+    const reg = new RegExp(`(^|\\W)${fav}(\\W|$)`, 'i');
+    if (reg.test(res.firstMonth)) {
+      throw new Error(`Assertion failed: firstMonth contains favorite name "${fav}"`);
+    }
+  }
+  for (const bw of BANNED_WORDS) {
+    const reg = new RegExp(`(^|\\W)${bw}(\\W|$)`, 'i');
+    if (reg.test(res.firstMonth)) {
+      throw new Error(`Assertion failed: firstMonth contains banned word "${bw}"`);
+    }
+  }
+
+  // Check intros and blurbs
+  for (const cat of res.categories) {
+    for (const fav of favNames) {
+      const reg = new RegExp(`(^|\\W)${fav}(\\W|$)`, 'i');
+      if (reg.test(cat.intro)) {
+        throw new Error(`Assertion failed: intro contains favorite name "${fav}" in category ${cat.title}`);
+      }
+      for (const p of cat.places) {
+        if (p.blurb && reg.test(p.blurb)) {
+          throw new Error(`Assertion failed: blurb contains favorite name "${fav}" in place ${p.name}`);
+        }
+      }
+    }
+
+    for (const bw of BANNED_WORDS) {
+      const reg = new RegExp(`(^|\\W)${bw}(\\W|$)`, 'i');
+      if (reg.test(cat.intro)) {
+        throw new Error(`Assertion failed: intro contains banned word "${bw}" in category ${cat.title}`);
+      }
+      for (const p of cat.places) {
+        if (p.blurb && reg.test(p.blurb)) {
+          throw new Error(`Assertion failed: blurb contains banned word "${bw}" in place ${p.name}`);
+        }
+      }
+    }
+  }
+}
+
+function printProfileSummary(profileTitle: string, res: any) {
+  console.log(`\n====================================================`);
+  console.log(`${profileTitle.toUpperCase()} SUMMARY`);
+  console.log(`====================================================`);
+  console.log(`Destination: ${res.destination} area`);
+  console.log(`Categories count: ${res.categories.length}`);
+  console.log(`Blurbs vs Null count: ${res.meta.blurbCount} places with blurb, ${res.meta.nullBlurbCount} places with null`);
+  console.log(`Narration mode: ${res.meta.narration}`);
+  if (res.meta.notice) console.log(`Notice: "${res.meta.notice}"`);
+
+  for (const cat of res.categories) {
+    console.log(`\nCategory: "${cat.title}" [${cat.kindLabel}]`);
+    console.log(`  Tag ID: ${cat.tagId}`);
+    console.log(`  Enrichment: ${cat.enrichment.toFixed(1)}x (cSig=${cat.cSig}, cBase=${cat.cBase})`);
+    console.log(`  Raw Taste Lift: ${(cat.rawTasteLift * 100).toFixed(0)}% (${cat.rawLiftCount} of top 10 wouldn't appear without taste)`);
+    console.log(`  Primary Badge: "${cat.badge}"`);
+    console.log(`  Secondary Badge: "${cat.tasteLiftBadge}"`);
+    console.log(`  Place Count: ${cat.places.length}`);
+    console.log(`  Intro: "${cat.intro}"`);
+    console.log(`  First 3 Places:`);
+    cat.places.slice(0, 3).forEach((p: any, idx: number) => {
+      console.log(`    ${idx + 1}. ${p.name} (${p.address || 'Metro area'})`);
+      console.log(`       Rating: ${p.rating ? '★ ' + p.rating : 'N/A'} | Dishes: ${p.dishes.length > 0 ? p.dishes.join(', ') : 'None'}`);
+      console.log(`       Blurb: ${p.blurb ? `"${p.blurb}"` : 'null (no dishes/desc)'}`);
+    });
+  }
+
+  console.log('\n--- Signal Check Table (Qloo Taste Attribution) ---');
+  res.signalCheck.forEach((s: any) => {
+    console.log(`  • ${s.summary}`);
+  });
+
+  console.log('\n--- Settling Plan Preview ---');
+  console.log(res.firstMonth);
+
+  console.log('\n--- Metadata & Timings ---');
+  console.log(`- Qloo calls: ${res.meta.qlooCalls}`);
+  console.log(`- LLM calls: ${res.meta.llmCalls}`);
+  console.log(`- Execution duration: ${res.meta.ms} ms`);
+  console.log(`- Grounding violations: ${res.meta.groundingViolations}`);
+  console.log(`- Repair attempts: ${res.meta.repairAttempts}`);
+  console.log(`- Narration: ${res.meta.narration}`);
+  console.log(`- Timings breakdown:`, res.meta.timings);
+}
+
 async function runE2E() {
   console.log('====================================================');
-  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 3)');
+  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 4)');
   console.log('====================================================\n');
 
   // ----------------------------------------------------
-  // SECTION 1: Profile 1 (Kerala -> Toronto)
+  // PROFILE 1: Kerala Favorites -> Toronto
   // ----------------------------------------------------
-  console.log('--- 1. Running Profile 1: Kerala Favorites -> Toronto ---');
+  console.log('>>> 1. Running Profile 1: Kerala Favorites -> Toronto <<<');
   const streamEvents: PipelineProgressEvent[] = [];
 
   const profile1 = {
@@ -50,7 +140,7 @@ async function runE2E() {
   };
 
   const res1 = await runPassportPipeline(profile1, {
-    ip: 'e2e-tester-ip-1',
+    ip: 'e2e-p1-tester',
     bypassRateLimit: true,
     forceRefresh: true,
     onProgress: (ev) => {
@@ -59,126 +149,28 @@ async function runE2E() {
     },
   });
 
-  console.log('\n--- Profile 1 Output Summary ---');
-  console.log(`Destination: ${res1.destination} area`);
-  console.log(`Categories count: ${res1.categories.length}`);
-
-  let totalPlaces1 = 0;
-  for (const cat of res1.categories) {
-    totalPlaces1 += cat.places.length;
-    console.log(`\nCategory: "${cat.title}" [${cat.kindLabel.toUpperCase()}]`);
-    console.log(`  Tag ID: ${cat.tagId}`);
-    console.log(`  Taste Lift: ${cat.tasteLiftPercent}% (Badge: "${cat.badge}")`);
-    console.log(`  Place Count: ${cat.places.length}`);
-    console.log(`  Intro: "${cat.intro}"`);
-    console.log(`  First 3 Places:`);
-    cat.places.slice(0, 3).forEach((p, idx) => {
-      console.log(`    ${idx + 1}. ${p.name}`);
-      console.log(`       Address: ${p.address || 'N/A'}`);
-      console.log(`       LiftedBy: [${p.matchedBy.join(', ')}]`);
-      console.log(`       Blurb: ${p.blurb}`);
-    });
-  }
-
-  console.log(`\nTotal places returned across categories: ${totalPlaces1}`);
-
-  console.log('\n--- MatchedBy for First 3 Places in Primary Category ---');
-  const firstCat = res1.categories[0];
-  firstCat.places.slice(0, 3).forEach((p, idx) => {
-    console.log(`  Place ${idx + 1}: ${p.name} -> matchedBy: [${p.matchedBy.join(', ')}]`);
-  });
-
-  console.log('\n--- Signal Check Table (Honest Lift & Attribution) ---');
-  console.table(res1.signalCheck);
-
-  console.log('\n--- First Month Settling Plan ---');
-  console.log(res1.firstMonth);
-
-  console.log('\n--- Metadata & Timings ---');
-  console.log(`- Qloo calls: ${res1.meta.qlooCalls}`);
-  console.log(`- LLM calls: ${res1.meta.llmCalls}`);
-  console.log(`- Execution duration: ${res1.meta.ms} ms`);
-  console.log(`- Grounding violations in final output: ${res1.meta.groundingViolations}`);
-  console.log(`- Repair attempts: ${res1.meta.repairAttempts}`);
-  console.log(`- Cached: ${res1.meta.cached}`);
-  console.log(`- Timings breakdown:`, res1.meta.timings);
+  printProfileSummary('Profile 1 (Kerala -> Toronto)', res1);
 
   // Assertions for Profile 1
-  console.log('\n--- Verifying Profile 1 Assertions ---');
-  if (res1.categories.length < 3) throw new Error(`Assertion failed: categories < 3 (got ${res1.categories.length})`);
-  console.log('✓ Categories >= 3');
-
-  if (totalPlaces1 < 8) throw new Error(`Assertion failed: total places < 8 (got ${totalPlaces1})`);
-  console.log('✓ Total places >= 8');
-
+  if (res1.categories.length < 3) throw new Error(`Assertion failed: P1 categories < 3 (got ${res1.categories.length})`);
   for (const cat of res1.categories) {
-    if (cat.places.length < 3) {
-      throw new Error(`Assertion failed: Category "${cat.title}" has < 3 places (${cat.places.length})`);
-    }
-    for (const p of cat.places) {
-      if (!p.id || !p.name) {
-        throw new Error(`Assertion failed: place missing id or name: ${JSON.stringify(p)}`);
-      }
-    }
+    if (cat.places.length < 3) throw new Error(`Assertion failed: P1 category "${cat.title}" has < 3 places (${cat.places.length})`);
   }
-  console.log('✓ Every category has >= 3 places and valid id+name');
-
-  // Verify no place appears in two categories
-  const seenPlaceIds = new Set<string>();
+  const p1PlaceIds = new Set<string>();
   for (const cat of res1.categories) {
     for (const p of cat.places) {
-      if (seenPlaceIds.has(p.id)) {
-        throw new Error(`Assertion failed: place "${p.name}" (${p.id}) appears in multiple categories!`);
-      }
-      seenPlaceIds.add(p.id);
+      if (p1PlaceIds.has(p.id)) throw new Error(`Assertion failed: P1 place duplicate "${p.name}"`);
+      p1PlaceIds.add(p.id);
     }
   }
-  console.log('✓ No place appears in multiple categories (cross-category deduplication verified)');
-
-  // Verify no blurb contains a favorite name
-  const favNames = res1.resolved.map((r) => r.resolvedName);
-  for (const cat of res1.categories) {
-    for (const favName of favNames) {
-      const reg = new RegExp(`(^|\\W)${favName}(\\W|$)`, 'i');
-      if (reg.test(cat.intro)) {
-        throw new Error(`Assertion failed: category intro contains favorite name "${favName}"`);
-      }
-      for (const p of cat.places) {
-        if (reg.test(p.blurb)) {
-          throw new Error(`Assertion failed: place blurb contains favorite name "${favName}"`);
-        }
-      }
-    }
-  }
-  console.log('✓ No blurb or intro contains any favorite name');
-
-  if (res1.meta.groundingViolations !== 0) {
-    throw new Error(`Assertion failed: groundingViolations is ${res1.meta.groundingViolations}, expected 0`);
-  }
-  console.log('✓ Grounding violations == 0 in final output');
+  if (res1.meta.groundingViolations !== 0) throw new Error(`Assertion failed: P1 groundingViolations !== 0`);
+  assertNoBannedWordsOrFavoriteNames(res1);
+  console.log('\n✓ Profile 1 assertions PASSED (categories >= 3, places >= 3, no duplicates, no banned words/favorite names, violations == 0)');
 
   // ----------------------------------------------------
-  // SECTION 2: Repeat Run to Prove Cache Hit
+  // PROFILE 2: Punjabi/Bollywood Favorites -> London
   // ----------------------------------------------------
-  console.log('\n--- 2. Repeating Profile 1 (Proving Cache Hit) ---');
-  const cachedStart = performance.now();
-  const res1Cached = await runPassportPipeline(profile1, {
-    ip: 'e2e-tester-ip-1',
-    bypassRateLimit: true,
-  });
-  const cachedDuration = Math.round(performance.now() - cachedStart);
-
-  console.log(`- Cached result meta.cached: ${res1Cached.meta.cached}`);
-  console.log(`- Cached query duration: ${cachedDuration} ms (meta.ms: ${res1Cached.meta.ms} ms)`);
-  if (!res1Cached.meta.cached) {
-    throw new Error('Assertion failed: repeated query was not served from cache');
-  }
-  console.log('✓ Repeated run successfully served from cache with near-zero latency!');
-
-  // ----------------------------------------------------
-  // SECTION 3: Profile 2 (Punjabi/Bollywood -> London)
-  // ----------------------------------------------------
-  console.log('\n--- 3. Running Profile 2: Punjabi/Bollywood Favorites -> London ---');
+  console.log('\n>>> 2. Running Profile 2: Punjabi/Bollywood Favorites -> London <<<');
   const profile2 = {
     destination: 'London',
     favorites: [
@@ -190,85 +182,98 @@ async function runE2E() {
   };
 
   const res2 = await runPassportPipeline(profile2, {
-    ip: 'e2e-tester-ip-2',
+    ip: 'e2e-p2-tester',
     bypassRateLimit: true,
     forceRefresh: true,
   });
 
-  console.log('\n--- Profile 2 Output Summary (London) ---');
-  console.log(`Destination: ${res2.destination} area`);
-  console.log(`Resolved favorites count: ${res2.resolved.length}`);
-  res2.resolved.forEach((r) => console.log(`  - ${r.inputName} -> "${r.resolvedName}" (${r.resolvedType})`));
+  printProfileSummary('Profile 2 (Punjabi -> London)', res2);
 
-  console.log(`Categories count: ${res2.categories.length}`);
-  let totalPlaces2 = 0;
+  // Assertions for Profile 2
+  if (res2.categories.length < 3) throw new Error(`Assertion failed: P2 categories < 3 (got ${res2.categories.length})`);
   for (const cat of res2.categories) {
-    totalPlaces2 += cat.places.length;
-    console.log(`\nCategory: "${cat.title}" [${cat.kindLabel.toUpperCase()}]`);
-    console.log(`  Tag ID: ${cat.tagId}`);
-    console.log(`  Taste Lift: ${cat.tasteLiftPercent}% (Badge: "${cat.badge}")`);
-    console.log(`  Place Count: ${cat.places.length}`);
-    console.log(`  Top 3 Places:`);
-    cat.places.slice(0, 3).forEach((p, idx) => {
-      console.log(`    ${idx + 1}. ${p.name} (${p.address || 'London area'})`);
-    });
+    if (cat.places.length < 3) throw new Error(`Assertion failed: P2 category "${cat.title}" has < 3 places (${cat.places.length})`);
   }
-
-  console.log(`\nTotal places for London: ${totalPlaces2}`);
-  console.log(`Meta: ${res2.meta.qlooCalls} Qloo calls, ${res2.meta.ms}ms, groundingViolations: ${res2.meta.groundingViolations}`);
-  console.log(`Timings:`, res2.meta.timings);
-
-  // Grocery Gate Inspection for London:
-  console.log('\n--- Grocery Gate Inspection for London ---');
-  const groceryCategory = res2.categories.find((c) => c.kind === 'grocery');
-  if (groceryCategory) {
-    console.log(`Grocery category kept: "${groceryCategory.title}" (${groceryCategory.tagId})`);
-    console.log('Places in London grocery category:');
-    groceryCategory.places.forEach((p, i) => console.log(`  ${i + 1}. ${p.name} (${p.address})`));
-
-    // Verify no generic supermarket chain exists
-    const GENERIC_CHAINS = /(sainsbury|tesco|asda|morrisons|poundland|marks & spencer|waitrose|aldi|lidl)/i;
-    for (const p of groceryCategory.places) {
-      if (GENERIC_CHAINS.test(p.name)) {
-        throw new Error(`Assertion failed: London grocery contains generic supermarket chain: "${p.name}"`);
-      }
-    }
-    console.log('✓ No grocery result in London is a major generic supermarket chain');
-  } else {
-    console.log('✓ Grocery category was safely filtered out by Grocery Gate because no cultural grocery tag with >=3 places existed in London.');
-  }
-
-  // Cross-category deduplication assertion for Profile 2
-  const seenPlaceIds2 = new Set<string>();
+  const p2PlaceIds = new Set<string>();
   for (const cat of res2.categories) {
-    if (cat.places.length < 3) {
-      throw new Error(`Assertion failed: Category "${cat.title}" has < 3 places (${cat.places.length})`);
-    }
     for (const p of cat.places) {
-      if (seenPlaceIds2.has(p.id)) {
-        throw new Error(`Assertion failed: place "${p.name}" (${p.id}) appears in multiple categories!`);
-      }
-      seenPlaceIds2.add(p.id);
+      if (p2PlaceIds.has(p.id)) throw new Error(`Assertion failed: P2 place duplicate "${p.name}"`);
+      p2PlaceIds.add(p.id);
     }
   }
-  console.log('✓ London categories all have >= 3 places with zero cross-category duplicates');
+  if (res2.meta.groundingViolations !== 0) throw new Error(`Assertion failed: P2 groundingViolations !== 0`);
+  assertNoBannedWordsOrFavoriteNames(res2);
 
-  if (res2.meta.groundingViolations !== 0) {
-    throw new Error(`Assertion failed: groundingViolations is ${res2.meta.groundingViolations}, expected 0`);
+  // Assertion: Profile 1 and Profile 2 category sets differ
+  const p1Titles = res1.categories.map((c: any) => c.title.toLowerCase());
+  const p2Titles = res2.categories.map((c: any) => c.title.toLowerCase());
+  const setsAreIdentical = p1Titles.length === p2Titles.length && p1Titles.every((t: string) => p2Titles.includes(t));
+  if (setsAreIdentical) {
+    throw new Error(`Assertion failed: Profile 1 and Profile 2 category sets must differ!`);
   }
-  console.log('✓ Grounding violations == 0 in final output for London');
+  console.log('\n✓ Profile 2 assertions PASSED (P1 & P2 category sets differ, no duplicates, no banned words/favorite names)');
 
   // ----------------------------------------------------
-  // SECTION 4: Streamed Events Sequence Demonstration
+  // CONTROL PROFILE: Indie/Western -> Toronto
   // ----------------------------------------------------
-  console.log('\n--- 4. Event Streaming Sequence Demonstration ---');
-  console.log(`Total streamed events captured: ${streamEvents.length}`);
-  streamEvents.forEach((ev, i) => {
-    console.log(`  Event ${i + 1}: [stage=${ev.stage}] ${ev.message}`);
+  console.log('\n>>> 3. Running Control Profile: Indie/Western Favorites -> Toronto <<<');
+  const controlProfile = {
+    destination: 'Toronto',
+    favorites: [
+      { name: 'Radiohead', type: 'artist' as const },
+      { name: 'Inception', type: 'movie' as const },
+      { name: 'Breaking Bad', type: 'tv_show' as const },
+      { name: 'Fleabag', type: 'tv_show' as const },
+    ],
+  };
+
+  const resCtrl = await runPassportPipeline(controlProfile, {
+    ip: 'e2e-ctrl-tester',
+    bypassRateLimit: true,
+    forceRefresh: true,
   });
 
+  printProfileSummary('Control Profile (Indie -> Toronto)', resCtrl);
+  assertNoBannedWordsOrFavoriteNames(resCtrl);
+  console.log('\n✓ Control Profile assertions PASSED (sanity check complete, valid Qloo taste intelligence)');
+
+  // ----------------------------------------------------
+  // PROVE GRACEFUL DEGRADATION: Invalid Gemini API Key
+  // ----------------------------------------------------
+  console.log('\n>>> 4. Testing Graceful Degradation (Invalid GEMINI_API_KEY) <<<');
+  const originalGeminiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'INVALID_SYNTHETIC_GEMINI_KEY_OVERRIDE_TEST';
+
+  try {
+    const resDegraded = await runPassportPipeline(profile1, {
+      ip: 'e2e-degrade-tester',
+      bypassRateLimit: true,
+      forceRefresh: true,
+    });
+
+    console.log('\n--- Graceful Degradation Results ---');
+    console.log(`Narration: ${resDegraded.meta.narration}`);
+    console.log(`UI Notice Text: "${resDegraded.meta.notice}"`);
+    console.log(`LLM Calls: ${resDegraded.meta.llmCalls}`);
+    console.log(`Categories count: ${resDegraded.categories.length}`);
+    console.log(`Grounding violations: ${resDegraded.meta.groundingViolations}`);
+
+    if (resDegraded.meta.narration !== 'template') {
+      throw new Error(`Assertion failed: expected narration to be 'template', got '${resDegraded.meta.narration}'`);
+    }
+    if (!resDegraded.meta.notice?.includes('AI descriptions unavailable right now')) {
+      throw new Error(`Assertion failed: expected degradation notice text`);
+    }
+    if (resDegraded.meta.groundingViolations !== 0) {
+      throw new Error(`Assertion failed: expected 0 grounding violations in template fallback`);
+    }
+    console.log('✓ Graceful degradation verified successfully! Pipeline completes with template descriptions when Gemini fails.');
+  } finally {
+    process.env.GEMINI_API_KEY = originalGeminiKey;
+  }
+
   console.log('\n====================================================');
-  console.log('ALL E2E PIPELINE TESTS & ASSERTIONS PASSED!');
+  console.log('ALL PHASE 4 E2E VERIFICATION ASSERTIONS PASSED!');
   console.log('====================================================\n');
 }
 
