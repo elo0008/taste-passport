@@ -6,12 +6,14 @@ import { filterValidPlaces } from './filters';
 import {
   inferCuisinesFromTaste,
   shouldAddGroceryCategory,
+  formatCuisineBadge,
   EnrichedCuisineTag,
   FavoriteSignalCheck,
   INDIAN_GROCERY_TAG,
 } from './cuisine-inference';
 import {
   writeGroundedNarratives,
+  generateTemplateFallback,
   GroundingInputCategory,
 } from './grounding';
 import { resolveSingleFavorite, FavoriteType, TYPE_TO_URN } from './resolve-service';
@@ -47,6 +49,7 @@ export interface FinalPlace {
   rating: number | null;
   priceLevel: string | null;
   dishes: string[];
+  description?: string;
   affinity: number | null;
   blurb: string | null;
 }
@@ -93,6 +96,7 @@ export interface PassportResult {
     notice?: string;
     blurbCount: number;
     nullBlurbCount: number;
+    droppedCategories: string[];
     timings: PipelineTimings;
   };
 }
@@ -161,7 +165,7 @@ export async function runPassportPipeline(
     favs: input.favorites
       .map((f) => `${f.type}:${(f.entityId || f.name).trim().toLowerCase()}`)
       .sort(),
-    version: 'v4.0',
+    version: 'v5.0',
   });
 
   if (!options?.forceRefresh) {
@@ -187,9 +191,12 @@ export async function runPassportPipeline(
       500
     );
   }
-  const budget = new CallBudget(40);
+
+  const budget = new CallBudget(50);
   let totalQlooCalls = 0;
   let llmCallsCount = 0;
+  let deadlineNotice: string | undefined = undefined;
+  const droppedCategories: string[] = [];
 
   // 3. Stage: RESOLVE FAVORITES
   emit({
@@ -238,7 +245,6 @@ export async function runPassportPipeline(
           if (err instanceof QlooApiError && err.status && err.status >= 500) {
             throw err;
           }
-          // Non-500 errors fall through to unresolved
         }
 
         return {
@@ -303,10 +309,11 @@ export async function runPassportPipeline(
 
   timings.inferMs = Math.round(performance.now() - inferStart);
 
+  // Categories are already ordered by specificity: ascending cSig (rarer tag first)
   const topCuisines = inferenceRes.topCuisines;
   const signalCheck = inferenceRes.signalCheck;
 
-  // 5. Stage: QUERY PLACES PER INFERRED CUISINE + GROCERY RULE (Task B & C)
+  // 5. Stage: QUERY PLACES PER INFERRED CUISINE + GROCERY RULE (Task B, C, F)
   emit({
     type: 'progress',
     stage: 'querying_places',
@@ -358,8 +365,14 @@ export async function runPassportPipeline(
   const placeQueryTasks: Array<() => Promise<void>> = [];
 
   for (const cfg of categoryConfigs) {
-    // Combined query
+    // Task B: Category query with take=50
     placeQueryTasks.push(async () => {
+      // Deadline guard check: 50s total discovery budget
+      if (performance.now() - startTime > 50000) {
+        deadlineNotice = 'Discovery deadline reached (50s); returning verified categories.';
+        return;
+      }
+
       budget.track();
       totalQlooCalls++;
       try {
@@ -367,7 +380,7 @@ export async function runPassportPipeline(
           filterLocationQuery: input.destination,
           filterTags: cfg.tagId,
           signalEntities: cfg.isRuleBasedGrocery ? undefined : resolvedSignalIds,
-          take: 10,
+          take: 50,
         });
         const entities = res?.results?.entities || (Array.isArray(res?.results) ? res.results : []);
         categoryCombinedRaw.set(cfg.tagId, entities);
@@ -376,7 +389,7 @@ export async function runPassportPipeline(
       }
     });
 
-    // Baseline query (NO signals)
+    // Baseline query (NO signals, take=10 for raw top-10 taste lift computation)
     placeQueryTasks.push(async () => {
       const cacheBaselineKey = `baseline:${cfg.tagId}:${input.destination.trim().toLowerCase()}`;
       const cached = baselineCache.get<string[]>(cacheBaselineKey);
@@ -405,12 +418,18 @@ export async function runPassportPipeline(
 
   await runWithConcurrency(placeQueryTasks, 6);
 
-  // 6. Cross-category deduplication, backfilling, and raw lift computation (Task C)
+  // 6. Sequential assembly with shared claimed-id set (Task B & Task F)
   const assignedPlaceIds = new Set<string>();
   const assembledCategories: FinalCategory[] = [];
   const groundingInputCategories: GroundingInputCategory[] = [];
 
   for (const cfg of categoryConfigs) {
+    // Check deadline guard
+    if (performance.now() - startTime > 50000) {
+      deadlineNotice = 'Discovery deadline reached (50s); returning verified categories.';
+      break;
+    }
+
     const rawPlaces = categoryCombinedRaw.get(cfg.tagId) || [];
     const baselineIds = new Set<string>(tagBaselines.get(cfg.tagId) || []);
 
@@ -433,7 +452,7 @@ export async function runPassportPipeline(
     // Filter valid places (drop closed, drop banquet halls)
     const validPlaces = filterValidPlaces(rawPlaces);
 
-    // Cross-category deduplication: exclude already assigned place IDs
+    // Sequential claiming: skip ids already claimed by earlier (more specific) categories
     const availablePlaces = validPlaces.filter((p) => {
       const pId = p.entity_id || p.id || '';
       return pId && !assignedPlaceIds.has(pId);
@@ -441,20 +460,47 @@ export async function runPassportPipeline(
 
     const selectedPlaces = availablePlaces.slice(0, 6);
 
-    // Drop category if it ends with < 3 places
-    if (selectedPlaces.length < 3) {
-      continue;
+    // Task F: Grocery Coherence Gate
+    if (cfg.isRuleBasedGrocery) {
+      // Primary category is the first assembled category
+      const primaryCat = assembledCategories[0];
+      const primaryTagId = primaryCat?.tagId;
+      const primaryRawPlaces = primaryTagId ? categoryCombinedRaw.get(primaryTagId) || [] : [];
+      const primaryPool50Ids = new Set<string>(primaryRawPlaces.map((p: any) => p.entity_id || p.id || '').filter(Boolean));
+
+      let coherentCount = 0;
+      for (const p of selectedPlaces) {
+        const pId = p.entity_id || p.id || '';
+        const inPool = primaryPool50Ids.has(pId);
+        const hasPrimaryTag = Array.isArray(p.tags) && p.tags.some((t: any) => t.id === primaryTagId);
+        if (inPool || hasPrimaryTag) {
+          coherentCount++;
+        }
+      }
+
+      // "Keep the grocery category only if it holds >= 3 places AND >= 2 of its places also appear in the primary category's top-50 pool OR carry the primary cuisine tag"
+      if (selectedPlaces.length < 3 || coherentCount < 2) {
+        droppedCategories.push('Indian Grocery');
+        continue;
+      }
+    } else {
+      // Task B: Drop non-grocery category if it ends with < 4 places
+      if (selectedPlaces.length < 4) {
+        droppedCategories.push(cfg.title);
+        continue;
+      }
     }
 
+    // Mark as claimed in shared set
     for (const p of selectedPlaces) {
       const pId = p.entity_id || p.id || '';
       if (pId) assignedPlaceIds.add(pId);
     }
 
-    // Badge text
+    // Task A: Honest counts-based badge text
     const badge = cfg.isRuleBasedGrocery
       ? 'Rule-based: cultural grocery stop'
-      : `Qloo ranks this cuisine ${cfg.enrichment.toFixed(1)}x higher for your taste than for a generic ${input.destination} baseline (${cfg.cSig} of 50 places)`;
+      : formatCuisineBadge(cfg.cSig, cfg.cBase, 50, cfg.title, input.destination);
 
     const finalPlaces: FinalPlace[] = selectedPlaces.map((p: any) => {
       const pId = p.entity_id || p.id || '';
@@ -467,13 +513,13 @@ export async function runPassportPipeline(
           .slice(0, 3);
       }
 
-      let description: string | undefined = undefined;
+      let desc: string | undefined = undefined;
       if (typeof p.properties?.description === 'string' && p.properties.description.trim()) {
-        description = p.properties.description.trim();
+        desc = p.properties.description.trim();
       } else if (Array.isArray(p.properties?.short_descriptions) && p.properties.short_descriptions[0]) {
-        description = String(p.properties.short_descriptions[0]);
-      } else if (typeof p.properties?.cuisine_description === 'string') {
-        description = p.properties.cuisine_description;
+        desc = String(p.properties.short_descriptions[0]).trim();
+      } else if (typeof p.properties?.cuisine_description === 'string' && p.properties.cuisine_description.trim()) {
+        desc = p.properties.cuisine_description.trim();
       }
 
       return {
@@ -485,8 +531,9 @@ export async function runPassportPipeline(
         rating: typeof p.properties?.business_rating === 'number' ? p.properties.business_rating : null,
         priceLevel: p.properties?.price_level || (p.properties?.price_range?.currency ? '$' : null),
         dishes,
+        description: desc,
         affinity: typeof p.popularity === 'number' ? p.popularity : null,
-        blurb: null, // will be assigned in writing stage
+        blurb: null, // assigned in writing stage
       };
     });
 
@@ -513,11 +560,14 @@ export async function runPassportPipeline(
       places: finalPlaces.map((p) => {
         const rawPlace = selectedPlaces.find((sp: any) => (sp.entity_id || sp.id) === p.id);
         let desc: string | undefined = undefined;
-        if (typeof rawPlace?.properties?.description === 'string') {
-          desc = rawPlace.properties.description;
-        } else if (Array.isArray(rawPlace?.properties?.short_descriptions)) {
-          desc = rawPlace.properties.short_descriptions[0];
+        if (typeof rawPlace?.properties?.description === 'string' && rawPlace.properties.description.trim()) {
+          desc = rawPlace.properties.description.trim();
+        } else if (Array.isArray(rawPlace?.properties?.short_descriptions) && rawPlace.properties.short_descriptions[0]) {
+          desc = String(rawPlace.properties.short_descriptions[0]);
+        } else if (typeof rawPlace?.properties?.cuisine_description === 'string' && rawPlace.properties.cuisine_description.trim()) {
+          desc = rawPlace.properties.cuisine_description.trim();
         }
+
         return {
           id: p.id,
           name: p.name,
@@ -531,26 +581,40 @@ export async function runPassportPipeline(
 
   timings.discoverMs = Math.round(performance.now() - discoverStart);
 
-  // 7. Stage: GROUNDED COMMENTARY & DEGRADATION (Task B, D, F)
+  // 7. Stage: GROUNDED COMMENTARY & DEADLINE GUARD (Task D & Task E)
   emit({
     type: 'progress',
     stage: 'writing',
     message: 'Composing grounded commentary and settling guide...',
   });
 
-  const writeStart = performance.now();
-  const {
-    output: writtenNarratives,
-    groundingViolations,
-    repairAttempts,
-    narration,
-  } = await writeGroundedNarratives(
-    groundingInputCategories,
-    resolved.map((r) => r.resolvedName),
-    input.destination
-  );
+  const elapsedBeforeWrite = performance.now() - startTime;
+  let writtenNarratives;
+  let narration: 'ai' | 'template' = 'ai';
+  let groundingViolations = 0;
+  let repairAttempts = 0;
 
-  timings.writeMs = Math.round(performance.now() - writeStart);
+  // Task E: Deadline guard - if elapsed > 40s before writing, skip LLM and use template
+  if (elapsedBeforeWrite > 40000 || process.env.LLM_DISABLED === 'true') {
+    writtenNarratives = generateTemplateFallback(groundingInputCategories, input.destination);
+    narration = 'template';
+    if (elapsedBeforeWrite > 40000 && !deadlineNotice) {
+      deadlineNotice = 'AI descriptions skipped to ensure response deadline; showing verified data only.';
+    }
+  } else {
+    const writeStart = performance.now();
+    const writeRes = await writeGroundedNarratives(
+      groundingInputCategories,
+      resolved.map((r) => r.resolvedName),
+      input.destination
+    );
+    timings.writeMs = Math.round(performance.now() - writeStart);
+    writtenNarratives = writeRes.output;
+    groundingViolations = writeRes.groundingViolations;
+    repairAttempts = writeRes.repairAttempts;
+    narration = writeRes.narration;
+  }
+
   if (narration === 'ai') {
     llmCallsCount = 1;
   } else {
@@ -568,22 +632,27 @@ export async function runPassportPipeline(
 
   for (const cat of assembledCategories) {
     const writtenCat = writtenCategoryMap.get(cat.tagId);
+    const blurbMap = writtenCat ? new Map(writtenCat.places.map((p) => [p.id, p.blurb])) : new Map();
     if (writtenCat) {
       cat.intro = writtenCat.intro;
-      const blurbMap = new Map(writtenCat.places.map((p) => [p.id, p.blurb]));
-      for (const place of cat.places) {
-        const b = blurbMap.get(place.id) ?? null;
-        place.blurb = b;
-        if (b !== null) {
-          blurbCount++;
-        } else {
-          nullBlurbCount++;
-        }
-      }
     } else {
       cat.intro = `${cat.title} dining selections in the ${input.destination} area.`;
-      for (const place of cat.places) {
-        place.blurb = null;
+    }
+
+    const catInput = groundingInputCategories.find((c) => c.tagId === cat.tagId);
+
+    for (const place of cat.places) {
+      const placeInput = catInput?.places.find((p) => p.id === place.id);
+      const hasSourceText =
+        (place.dishes && place.dishes.length > 0) ||
+        Boolean(placeInput?.description && placeInput.description.trim());
+
+      // Task D: Strict rule - blurb MUST be null if no source text
+      const b = hasSourceText ? (blurbMap.get(place.id) ?? null) : null;
+      place.blurb = b;
+      if (b !== null) {
+        blurbCount++;
+      } else {
         nullBlurbCount++;
       }
     }
@@ -608,11 +677,13 @@ export async function runPassportPipeline(
       cached: false,
       narration,
       notice:
-        narration === 'template'
+        deadlineNotice ||
+        (narration === 'template'
           ? 'AI descriptions unavailable right now; showing data only'
-          : undefined,
+          : undefined),
       blurbCount,
       nullBlurbCount,
+      droppedCategories,
       timings,
     },
   };

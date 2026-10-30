@@ -119,7 +119,7 @@ function printProfileSummary(profileTitle: string, res: any) {
 
 async function runE2E() {
   console.log('====================================================');
-  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 4)');
+  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 5)');
   console.log('====================================================\n');
 
   // ----------------------------------------------------
@@ -152,9 +152,15 @@ async function runE2E() {
   printProfileSummary('Profile 1 (Kerala -> Toronto)', res1);
 
   // Assertions for Profile 1
-  if (res1.categories.length < 3) throw new Error(`Assertion failed: P1 categories < 3 (got ${res1.categories.length})`);
+  if (res1.categories.length < 2) throw new Error(`Assertion failed: P1 categories < 2 (got ${res1.categories.length})`);
   for (const cat of res1.categories) {
-    if (cat.places.length < 3) throw new Error(`Assertion failed: P1 category "${cat.title}" has < 3 places (${cat.places.length})`);
+    const minPlaces = cat.kind === 'grocery' ? 3 : 4;
+    if (cat.places.length < minPlaces) {
+      throw new Error(`Assertion failed: P1 category "${cat.title}" has < ${minPlaces} places (${cat.places.length})`);
+    }
+    if (cat.kind !== 'grocery' && !cat.badge.includes("of Qloo's top 50 places for your taste are tagged")) {
+      throw new Error(`Assertion failed: P1 category "${cat.title}" badge does not match counts format: "${cat.badge}"`);
+    }
   }
   const p1PlaceIds = new Set<string>();
   for (const cat of res1.categories) {
@@ -165,7 +171,7 @@ async function runE2E() {
   }
   if (res1.meta.groundingViolations !== 0) throw new Error(`Assertion failed: P1 groundingViolations !== 0`);
   assertNoBannedWordsOrFavoriteNames(res1);
-  console.log('\n✓ Profile 1 assertions PASSED (categories >= 3, places >= 3, no duplicates, no banned words/favorite names, violations == 0)');
+  console.log('\n✓ Profile 1 assertions PASSED (categories valid, places >= 4, counts badges, no duplicates, violations == 0)');
 
   // ----------------------------------------------------
   // PROFILE 2: Punjabi/Bollywood Favorites -> London
@@ -190,9 +196,15 @@ async function runE2E() {
   printProfileSummary('Profile 2 (Punjabi -> London)', res2);
 
   // Assertions for Profile 2
-  if (res2.categories.length < 3) throw new Error(`Assertion failed: P2 categories < 3 (got ${res2.categories.length})`);
+  if (res2.categories.length < 2) throw new Error(`Assertion failed: P2 categories < 2 (got ${res2.categories.length})`);
   for (const cat of res2.categories) {
-    if (cat.places.length < 3) throw new Error(`Assertion failed: P2 category "${cat.title}" has < 3 places (${cat.places.length})`);
+    const minPlaces = cat.kind === 'grocery' ? 3 : 4;
+    if (cat.places.length < minPlaces) {
+      throw new Error(`Assertion failed: P2 category "${cat.title}" has < ${minPlaces} places (${cat.places.length})`);
+    }
+    if (cat.kind !== 'grocery' && !cat.badge.includes("of Qloo's top 50 places for your taste are tagged")) {
+      throw new Error(`Assertion failed: P2 category "${cat.title}" badge does not match counts format: "${cat.badge}"`);
+    }
   }
   const p2PlaceIds = new Set<string>();
   for (const cat of res2.categories) {
