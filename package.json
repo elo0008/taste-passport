@@ -13,7 +13,8 @@
     "audit:blurbs": "tsx scripts/audit-blurbs.ts",
     "smoke": "tsx scripts/smoke.ts",
     "baseline": "tsx scripts/baseline.ts",
-    "sweep": "tsx scripts/sweep.ts"
+    "sweep": "tsx scripts/sweep.ts",
+    "audit:images": "tsx scripts/audit-images.ts"
   },
   "dependencies": {
     "@google/genai": "^0.2.0",

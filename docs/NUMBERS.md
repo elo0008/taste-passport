@@ -49,6 +49,10 @@ In accordance with competition rules and Qloo API licensing, all underlying eval
 | 37 | **7.4% Missing Website Link** (4 / 54 places) | `docs/EVALUATION.md` (L163) | `scripts/audit-venue-fields.ts` | `npx tsx scripts/audit-venue-fields.ts` | 2026-10-30 10:36 | `2a31d93` |
 | 38 | **9.3% Missing Either Phone or Website** (5 / 54 places) | `docs/EVALUATION.md` (L164) | `scripts/audit-venue-fields.ts` | `npx tsx scripts/audit-venue-fields.ts` | 2026-10-30 10:36 | `2a31d93` |
 | 39 | **0.0% Missing Both Phone and Website** (0 / 54 places) | `docs/EVALUATION.md` (L165) | `scripts/audit-venue-fields.ts` | `npx tsx scripts/audit-venue-fields.ts` | 2026-10-30 10:36 | `2a31d93` |
+| 40 | **94.9% Candidate Image Availability** (37 / 39 candidates) | `docs/NUMBERS.md` | `scripts/audit-images.ts` | `npm run audit:images` | 2026-10-30 13:26 | `HEAD` |
+| 41 | **100.0% Place Image Availability** (54 / 54 places) | `docs/NUMBERS.md` | `scripts/audit-images.ts` | `npm run audit:images` | 2026-10-30 13:26 | `HEAD` |
+| 42 | **100.0% Qloo-Hosted Images** (`images.qloo.com`) | `docs/NUMBERS.md` | `scripts/audit-images.ts` | `npm run audit:images` | 2026-10-30 13:26 | `HEAD` |
+| 43 | **85.0% Place Image Probe Success** (17 / 20 status 206, 3 / 20 status 504) | `docs/NUMBERS.md` | `scripts/audit-images.ts` | `npm run audit:images` | 2026-10-30 13:26 | `HEAD` |
 
 ---
 
@@ -67,3 +71,20 @@ A full codebase search was conducted across `src/`, `scripts/`, `tests/`, and do
 3. **`tests/` Directory**:
    - All unit tests use strictly labelled `SYNTHETIC` mock data (e.g. `SYNTHETIC_TEST_KEY_NEVER_LOG`, synthetic entity IDs `id-fav1`, `id-fav2`). No licensed Qloo response payloads are persisted or committed.
 
+
+
+---
+
+## 3. Place & Candidate Image Availability & HTTP Verification (Task D)
+
+Audited across Profile 1 (Kerala -> Toronto), Profile 2 (Punjabi -> London), and Control Profile (Indie -> Toronto) plus all candidate entities for their 13 input favorites via `npm run audit:images` (`scripts/audit-images.ts`):
+
+- **Search Candidates ($n=39$)**: 37 with `imageUrl` (94.9%), 2 with null (5.1%).
+- **Result Places ($n=54$)**: 54 with `imageUrl` (100.0%), 0 with null (0.0%).
+- **Distinct Hostnames**: `images.qloo.com` (100% Qloo-hosted, `https:` only).
+- **HTTP Server-Side Sample Probe (`Range: bytes=0-0`)**:
+  - Place sample ($n=20$): 17 status 206 (`image/jpeg`), 3 status 504 (`application/json` upstream timeout), 0 redirects.
+  - Candidate sample ($n=10$): 10 status 206 (`image/jpeg`), 0 redirects.
+- **Hotlink Security & Allowlist**: URLs sanitized via `src/lib/images.ts` with strict `ALLOWED_IMAGE_HOSTS = ["images.qloo.com"]`. Non-HTTPS, data:, javascript:, protocol-relative, and unlisted hostnames normalize to `null`.
+- **Grounded Writer Isolation**: Image URLs are strictly excluded from `GroundingInputPlace` and the Gemini prompt input.
+- **Browser Policy Note**: Server-side HTTP success does NOT prove that a user browser will load the image (due to potential browser Referer headers, CORS, or CDN hotlink protection policies). A manual browser check on the deployed site is required.

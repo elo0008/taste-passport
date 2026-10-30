@@ -26,7 +26,7 @@ Taste Passport is built for:
    - An event stream shows live pipeline progress: entity resolution, cuisine inference, venue querying, and commentary generation.
    - **Inferred Cuisines & Honest Badges**: Displays categories ordered by cultural specificity (e.g. *Kerala* before *South Indian* before *Indian*). Badges report exact counts against local baseline: `"11 of Qloo's top 50 places for your taste are tagged Kerala; 0 of the top 50 for a generic Toronto baseline."` Multipliers are shown only when the baseline count is $\ge 3$.
    - **Taste Lift Metric**: Shows the percentage of top recommendations that wouldn't appear without the user's taste signals.
-   - **Place cards from Qloo**: Up to 6 non-duplicated venues per category with address from Qloo, rating, dishes, and website links. Blurbs are only displayed if menu or description data exists in Qloo.
+   - **Place cards from Qloo**: Up to 6 non-duplicated venues per category with address from Qloo, rating, dishes, and website links. Blurbs are only displayed if menu or description data exists in Qloo. Place data and images come from the Qloo API.
    - **Signal Check**: Shows which specific cultural favorites actively drove regional cuisine enrichment, and clearly labels unaligned favorites as *"Pulled in a different direction (not used for the categories above)"*.
    - **First-Month Settling Guide**: A chronological 4-week exploration plan grounded entirely in the discovered venues.
 
