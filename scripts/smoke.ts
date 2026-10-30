@@ -4,7 +4,17 @@
  * Example: npx tsx scripts/smoke.ts http://localhost:3000
  */
 
-const baseUrl = (process.argv[2] || 'http://localhost:3000').replace(/\/+$/, '');
+const rawUrl = process.argv[2];
+if (!rawUrl || !rawUrl.trim()) {
+  console.error('====================================================');
+  console.error('ERROR: Missing required <baseUrl> argument.');
+  console.error('Usage: npm run smoke -- <baseUrl>');
+  console.error('Example: npm run smoke -- http://localhost:3000');
+  console.error('====================================================');
+  process.exit(1);
+}
+
+const baseUrl = rawUrl.trim().replace(/\/+$/, '');
 
 const PROFILE_1_FAVORITES = [
   { name: 'Premam', type: 'movie' },
@@ -16,7 +26,8 @@ const PROFILE_1_FAVORITES = [
 
 async function runSmokeTest() {
   console.log('====================================================');
-  console.log(`TASTE PASSPORT SMOKE TEST -> ${baseUrl}`);
+  console.log(`TASTE PASSPORT SMOKE TEST`);
+  console.log(`TARGET BASE URL: ${baseUrl}`);
   console.log('====================================================\n');
 
   const startTime = Date.now();
@@ -152,3 +163,4 @@ runSmokeTest().catch((err) => {
   console.error('\n❌ Smoke Test Failed:', err.message);
   process.exit(1);
 });
+
