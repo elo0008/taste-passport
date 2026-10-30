@@ -562,8 +562,8 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
       const mockClient = new (await import('@/lib/qloo')).QlooClient({
         apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
         maxRetries: 0,
-        fetchFn: async (url: string | URL) => {
-          const urlObj = typeof url === 'string' ? new URL(url) : url;
+        fetchFn: async (url: any) => {
+          const urlObj = typeof url === 'string' ? new URL(url) : url instanceof URL ? url : new URL(String(url));
           const signalParam = urlObj.searchParams.get('signal.interests.entities');
           const filterTags = urlObj.searchParams.get('filter.tags');
 
@@ -635,7 +635,7 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
           favorites: [
             { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
             { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
-            { name: 'Unaligned Fav', type: 'author', entityId: 'id-fav3' },
+            { name: 'Unaligned Fav', type: 'person', entityId: 'id-fav3' },
           ],
         },
         { client: mockClient, bypassRateLimit: true, forceRefresh: true }

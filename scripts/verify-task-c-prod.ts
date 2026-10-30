@@ -49,7 +49,7 @@ async function main() {
       { name: 'Drishyam', type: 'movie' as const },
       { name: 'A. R. Rahman', type: 'artist' as const },
       { name: 'K. S. Chithra', type: 'artist' as const },
-      { name: 'Vaikom Muhammad Basheer', type: 'author' as const },
+      { name: 'Vaikom Muhammad Basheer', type: 'person' as const },
     ],
   };
 
