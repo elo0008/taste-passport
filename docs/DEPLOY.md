@@ -62,3 +62,4 @@ The smoke test verifies:
 1. `GET /api/health` &rarr; 200 OK
 2. `POST /api/resolve` &rarr; 200 OK with entity candidate disambiguation
 3. `POST /api/passport` &rarr; Full SSE stream verification, category assembly, and zero grounding violations.
+
