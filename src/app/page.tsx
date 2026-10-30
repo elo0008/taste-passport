@@ -588,6 +588,46 @@ export default function HomePage() {
             </div>
           </section>
 
+          {/* Taste vs Baseline Comparison (Task B) */}
+          {result.tasteVsBaseline && (
+            <section style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>⚖️ Taste vs Baseline Comparison</h3>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  Top cuisines in Qloo's top 50 places for your taste vs an unguided {result.tasteVsBaseline.destination} baseline.
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.75rem' }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.85rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#475569', marginBottom: '0.5rem' }}>
+                    Generic {result.tasteVsBaseline.destination} Baseline (Top 50 Places)
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {result.tasteVsBaseline.baselineTop.map((t, idx) => (
+                      <span key={idx} style={{ background: '#e2e8f0', color: '#334155', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 500 }}>
+                        {t.tagName} <strong>({t.count})</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '0.85rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1e40af', marginBottom: '0.5rem' }}>
+                    Your Taste Profile (Top 50 Places)
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {result.tasteVsBaseline.tasteTop.map((t, idx) => (
+                      <span key={idx} style={{ background: '#dbeafe', color: '#1e3a8a', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
+                        {t.tagName} <strong>({t.count})</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Categories and Places */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {result.categories.map((cat, i) => (

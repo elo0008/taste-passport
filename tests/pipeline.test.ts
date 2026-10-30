@@ -572,12 +572,35 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
             return new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });
           }
 
-          // Initial combined query (all 3 favorites: id-fav1,id-fav2,id-fav3)
-          if (signalParam === 'id-fav1,id-fav2,id-fav3') {
-            // Initial pass returns 9 Kerala places
+          if (filterTags === 'urn:tag:cuisine:qloo:kerala') {
             return new Response(
               JSON.stringify({
-                results: { entities: makePlaces(9, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+                results: { entities: makePlaces(11, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          if (filterTags === 'urn:tag:cuisine:qloo:south_indian') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(11, 'urn:tag:cuisine:qloo:south_indian', 'South Indian') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Initial combined query (all 3 favorites: id-fav1,id-fav2,id-fav3)
+          if (signalParam === 'id-fav1,id-fav2,id-fav3') {
+            // Initial pass returns 9 Kerala places and 9 South Indian places
+            return new Response(
+              JSON.stringify({
+                results: {
+                  entities: [
+                    ...makePlaces(9, 'urn:tag:cuisine:qloo:kerala', 'Kerala'),
+                    ...makePlaces(9, 'urn:tag:cuisine:qloo:south_indian', 'South Indian'),
+                  ],
+                },
               }),
               { status: 200 }
             );
@@ -585,11 +608,15 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
 
           // Rerun combined query with consistent favorites only: id-fav1,id-fav2
           if (signalParam === 'id-fav1,id-fav2') {
-            // If category places query for Kerala (takes 50)
-            // or rerun combined query: returns 11 Kerala places!
+            // Rerun returns 11 Kerala places and 11 South Indian places!
             return new Response(
               JSON.stringify({
-                results: { entities: makePlaces(11, 'urn:tag:cuisine:qloo:kerala', 'Kerala') },
+                results: {
+                  entities: [
+                    ...makePlaces(11, 'urn:tag:cuisine:qloo:kerala', 'Kerala'),
+                    ...makePlaces(11, 'urn:tag:cuisine:qloo:south_indian', 'South Indian'),
+                  ],
+                },
               }),
               { status: 200 }
             );
@@ -654,6 +681,296 @@ describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
       expect(keralaCat?.cSig).toBe(11);
       expect(keralaCat?.badge).toContain("11 of Qloo's top 50 places");
       expect(keralaCat?.badge).not.toContain("9 of Qloo's top 50 places");
+    } finally {
+      process.env.LLM_DISABLED = origEnv;
+    }
+  });
+});
+
+describe('Phase 9 Robustness & Baseline Comparison (Task A & B)', () => {
+  const makePlaces = (count: number, tagId: string, tagName: string) =>
+    Array.from({ length: count }, (_, i) => ({
+      entity_id: `place-${tagId}-${i}`,
+      name: `${tagName} Venue ${i}`,
+      tags: [
+        { id: tagId, name: tagName },
+        { id: 'urn:tag:genre:place:restaurant', name: 'Restaurant' },
+      ],
+      properties: { specialty_dishes: [{ name: 'Dish X' }] },
+    }));
+
+  it('merges duplicate favorites and informs user in meta.notice', async () => {
+    const origEnv = process.env.LLM_DISABLED;
+    process.env.LLM_DISABLED = 'true';
+
+    try {
+      const mockClient = new (await import('@/lib/qloo')).QlooClient({
+        apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+        maxRetries: 0,
+        fetchFn: async (url: any) => {
+          const urlObj = typeof url === 'string' ? new URL(url) : url instanceof URL ? url : new URL(String(url));
+          const signalParam = urlObj.searchParams.get('signal.interests.entities');
+          const filterTags = urlObj.searchParams.get('filter.tags');
+
+          if (!signalParam) {
+            return new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });
+          }
+
+          if (filterTags === 'urn:tag:cuisine:qloo:italian') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(6, 'urn:tag:cuisine:qloo:italian', 'Italian') },
+              }),
+              { status: 200 }
+            );
+          }
+          if (filterTags === 'urn:tag:cuisine:qloo:french') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(6, 'urn:tag:cuisine:qloo:french', 'French') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              results: {
+                entities: [
+                  ...makePlaces(5, 'urn:tag:cuisine:qloo:italian', 'Italian'),
+                  ...makePlaces(5, 'urn:tag:cuisine:qloo:french', 'French'),
+                ],
+              },
+            }),
+            { status: 200 }
+          );
+        },
+      });
+
+      const result = await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Premam', type: 'movie', entityId: 'fav1' },
+            { name: 'Premam', type: 'movie', entityId: 'fav1' },
+            { name: 'Drishyam', type: 'movie', entityId: 'fav2' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+
+      expect(result.resolved).toHaveLength(2);
+      expect(result.meta.notice).toContain('Duplicate favorites merged: Premam');
+    } finally {
+      process.env.LLM_DISABLED = origEnv;
+    }
+  });
+
+  it('throws status 422 friendly error naming unresolved favorites when < 2 resolve', async () => {
+    const mockClient = new (await import('@/lib/qloo')).QlooClient({
+      apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+      maxRetries: 0,
+      fetchFn: async (url: any) => {
+        // Empty search results for resolution
+        return new Response(JSON.stringify({ results: [] }), { status: 200 });
+      },
+    });
+
+    try {
+      await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Valid Pick', type: 'movie', entityId: 'id-valid' },
+            { name: 'Unresolved Author', type: 'person' },
+            { name: 'Unknown Artist', type: 'artist' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+      expect.unreachable('Should have thrown PipelineError');
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(PipelineError);
+      expect(err.statusCode).toBe(422);
+      expect(err.message).toContain('Could not resolve enough favorites in Qloo\'s taste database (resolved 1 of 3; at least 2 are required).');
+      expect(err.message).toContain('Unresolved: "Unresolved Author", "Unknown Artist".');
+    }
+  });
+
+  it('throws status 422 friendly limited coverage message when < 2 categories are found', async () => {
+    const mockClient = new (await import('@/lib/qloo')).QlooClient({
+      apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+      maxRetries: 0,
+      fetchFn: async () => {
+        // Return places with only 1 tag that qualifies
+        return new Response(
+          JSON.stringify({
+            results: {
+              entities: makePlaces(5, 'urn:tag:cuisine:qloo:italian', 'Italian'),
+            },
+          }),
+          { status: 200 }
+        );
+      },
+    });
+
+    try {
+      await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
+            { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+      expect.unreachable('Should have thrown PipelineError');
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(PipelineError);
+      expect(err.statusCode).toBe(422);
+      expect(err.message).toContain('Limited dining coverage found in "Toronto"');
+      expect(err.message).toContain('at least 2 are required');
+      expect(err.message).toContain('Try searching with a larger metropolitan city');
+    }
+  });
+
+  it('throws status 400 friendly message on unknown destination without technical JSON', async () => {
+    const mockClient = new (await import('@/lib/qloo')).QlooClient({
+      apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+      maxRetries: 0,
+      fetchFn: async () => {
+        return new Response(
+          JSON.stringify({
+            errors: [{ message: 'filter.location.query is unable to resolve to a valid locality.' }],
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      },
+    });
+
+    try {
+      await runPassportPipeline(
+        {
+          destination: 'Torontoo',
+          favorites: [
+            { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
+            { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+      expect.unreachable('Should have thrown PipelineError');
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(PipelineError);
+      expect(err.statusCode).toBe(400);
+      expect(err.message).toBe('Could not locate destination "Torontoo". Please check the spelling of your destination city or try a major nearby city.');
+      expect(err.message).not.toContain('filter.location.query');
+      expect(err.message).not.toContain('{');
+    }
+  });
+
+  it('populates tasteVsBaseline with top 5 tags from final query sets excluding generic tags', async () => {
+    const origEnv = process.env.LLM_DISABLED;
+    process.env.LLM_DISABLED = 'true';
+
+    try {
+      const mockClient = new (await import('@/lib/qloo')).QlooClient({
+        apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+        maxRetries: 0,
+        fetchFn: async (url: any) => {
+          const urlObj = typeof url === 'string' ? new URL(url) : url instanceof URL ? url : new URL(String(url));
+          const signalParam = urlObj.searchParams.get('signal.interests.entities');
+          const filterTags = urlObj.searchParams.get('filter.tags');
+
+          // Specific category place query
+          if (filterTags && filterTags !== 'urn:tag:genre:place:restaurant') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(6, filterTags, 'Cuisine') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Baseline places: 5 distinct cuisine tags + generic tags
+          if (!signalParam) {
+            return new Response(
+              JSON.stringify({
+                results: {
+                  entities: [
+                    {
+                      entity_id: 'b1',
+                      tags: [
+                        { id: 'urn:tag:cuisine:qloo:italian', name: 'Italian' },
+                        { id: 'urn:tag:genre:place:restaurant', name: 'Restaurant' },
+                        { id: 'urn:tag:cuisine:qloo:american', name: 'American' },
+                      ],
+                    },
+                    {
+                      entity_id: 'b2',
+                      tags: [
+                        { id: 'urn:tag:cuisine:qloo:japanese', name: 'Japanese' },
+                        { id: 'urn:tag:cuisine:qloo:french', name: 'French' },
+                        { id: 'urn:tag:cuisine:qloo:mexican', name: 'Mexican' },
+                        { id: 'urn:tag:genre:place:restaurant:food', name: 'Food' },
+                      ],
+                    },
+                  ],
+                },
+              }),
+              { status: 200 }
+            );
+          }
+
+          // Combined places: Korean, Thai, Vietnamese, Japanese, Indian
+          return new Response(
+            JSON.stringify({
+              results: {
+                entities: [
+                  ...makePlaces(4, 'urn:tag:cuisine:qloo:korean', 'Korean'),
+                  ...makePlaces(4, 'urn:tag:cuisine:qloo:thai', 'Thai'),
+                  ...makePlaces(3, 'urn:tag:cuisine:qloo:vietnamese', 'Vietnamese'),
+                  ...makePlaces(3, 'urn:tag:cuisine:qloo:japanese', 'Japanese'),
+                  ...makePlaces(3, 'urn:tag:cuisine:qloo:indian', 'Indian'),
+                ],
+              },
+            }),
+            { status: 200 }
+          );
+        },
+      });
+
+      const result = await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
+            { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+
+      expect(result.tasteVsBaseline).toBeDefined();
+      expect(result.tasteVsBaseline?.destination).toBe('Toronto');
+
+      const baselineTop = result.tasteVsBaseline?.baselineTop || [];
+      const tasteTop = result.tasteVsBaseline?.tasteTop || [];
+
+      expect(baselineTop.length).toBeGreaterThan(0);
+      expect(baselineTop.length).toBeLessThanOrEqual(5);
+      expect(tasteTop.length).toBeGreaterThan(0);
+      expect(tasteTop.length).toBeLessThanOrEqual(5);
+
+      // Verify generic tags are excluded
+      for (const t of [...baselineTop, ...tasteTop]) {
+        expect(['restaurant', 'food', 'cuisine', 'dining']).not.toContain(t.tagName.toLowerCase());
+      }
+
+      // Check title-cased names
+      expect(tasteTop.map((t) => t.tagName)).toContain('Korean');
+      expect(tasteTop.map((t) => t.tagName)).toContain('Thai');
     } finally {
       process.env.LLM_DISABLED = origEnv;
     }
