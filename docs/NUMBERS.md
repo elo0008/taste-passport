@@ -41,7 +41,7 @@ In accordance with competition rules and Qloo API licensing, all underlying eval
 | 29 | **5 / 5 (100%) Metro Match Rate** (Profile 2: Punjabi -> London) | `docs/EVALUATION.md` (L114) | `scripts/baseline.ts` | `npm run baseline` | 2026-10-30 10:36 | `2a31d93` |
 | 30 | **4 / 5 (80%) Metro Match Rate** (Control: Indie -> Toronto) | `docs/EVALUATION.md` (L115) | `scripts/baseline.ts` | `npm run baseline` | 2026-10-30 10:36 | `2a31d93` |
 | 31 | **11 / 15 (73.3%) Overall Metro Match Rate** | `docs/EVALUATION.md` (Section 6) | `scripts/baseline.ts` | `npm run baseline` | 2026-10-30 10:36 | `2a31d93` |
-| 32 | **0 Blurbs without verified source text** | `docs/EVALUATION.md` (L132) | `scripts/audit-blurbs.ts` | `npm run audit:blurbs` | 2026-10-30 10:04 | `2a31d93` |
+| 32 | **0 Blurbs without source text from Qloo** | `docs/EVALUATION.md` (L132) | `scripts/audit-blurbs.ts` | `npm run audit:blurbs` | 2026-10-30 10:04 | `2a31d93` |
 | 33 | **98.8% Content Word Match** (677 / 685 content words) | `docs/EVALUATION.md` (L134) | `scripts/audit-blurbs.ts` | `npm run audit:blurbs` | 2026-10-30 10:04 | `2a31d93` |
 | 34 | **54 Total Unique Places Audited** | `docs/EVALUATION.md` (L158) | `scripts/audit-venue-fields.ts` | `npx tsx scripts/audit-venue-fields.ts` | 2026-10-30 10:36 | `2a31d93` |
 | 35 | **100.0% Valid Street Address** (54 / 54) | `docs/EVALUATION.md` (L159) | `scripts/audit-venue-fields.ts` | `npx tsx scripts/audit-venue-fields.ts` | 2026-10-30 10:36 | `2a31d93` |
@@ -66,3 +66,4 @@ A full codebase search was conducted across `src/`, `scripts/`, `tests/`, and do
 
 3. **`tests/` Directory**:
    - All unit tests use strictly labelled `SYNTHETIC` mock data (e.g. `SYNTHETIC_TEST_KEY_NEVER_LOG`, synthetic entity IDs `id-fav1`, `id-fav2`). No licensed Qloo response payloads are persisted or committed.
+

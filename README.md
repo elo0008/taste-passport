@@ -1,6 +1,6 @@
 # Taste Passport 🌍
 
-Taste Passport connects a traveler or immigrant's cultural favorites from home—filmmakers, musicians, authors, and media—to real dining venues in any destination city. While conventional travel guides and large language models rely on generic popularity lists or unverified place suggestions, Taste Passport relies on Qloo's taste intelligence graph to select cuisines and dining venues that resonate with the user's cultural taste profile. The AI never guesses or picks venues; Qloo selects the places, and Google Gemini writes concise, strictly grounded descriptions based only on verified menu and venue properties.
+Taste Passport connects a traveler or immigrant's cultural favorites from home—filmmakers, musicians, authors, and media—to real dining venues in any destination city. While conventional travel guides and large language models rely on generic popularity lists or unverified place suggestions, Taste Passport derives cuisines from the tags on Qloo's place results (signal results vs a no-signal baseline) and dining venues that resonate with the user's cultural taste profile. The AI never guesses or picks venues; Qloo selects the places, and Google Gemini writes concise, strictly grounded descriptions based only on menu and venue properties from Qloo.
 
 ## Target Audience
 Taste Passport is built for:
@@ -26,7 +26,7 @@ Taste Passport is built for:
    - An event stream shows live pipeline progress: entity resolution, cuisine inference, venue querying, and commentary generation.
    - **Inferred Cuisines & Honest Badges**: Displays categories ordered by cultural specificity (e.g. *Kerala* before *South Indian* before *Indian*). Badges report exact counts against local baseline: `"11 of Qloo's top 50 places for your taste are tagged Kerala; 0 of the top 50 for a generic Toronto baseline."` Multipliers are shown only when the baseline count is $\ge 3$.
    - **Taste Lift Metric**: Shows the percentage of top recommendations that wouldn't appear without the user's taste signals.
-   - **Verified Place Cards**: Up to 6 non-duplicated venues per category with verified address, rating, dishes, and website links. Blurbs are only displayed if menu or description data exists in Qloo.
+   - **Place cards from Qloo**: Up to 6 non-duplicated venues per category with address from Qloo, rating, dishes, and website links. Blurbs are only displayed if menu or description data exists in Qloo.
    - **Signal Check**: Shows which specific cultural favorites actively drove regional cuisine enrichment, and clearly labels unaligned favorites as *"Pulled in a different direction (not used for the categories above)"*.
    - **First-Month Settling Guide**: A chronological 4-week exploration plan grounded entirely in the discovered venues.
 
@@ -60,7 +60,7 @@ User Favorites (Movies, Artists, Authors) + Destination City
                       │
                       ▼
            [ LLM Grounding Writer ] ──> Gemini 3.5 Flash Lite writes blurbs
-           (Strict Boundary Check)       using ONLY verified dishes & descriptions.
+           (Strict Boundary Check)       using ONLY dishes & descriptions from Qloo.
                       │                 (If elapsed > 40s or quota error, fallback
                       │                  gracefully to deterministic template).
                       ▼
@@ -103,8 +103,8 @@ User Favorites (Movies, Artists, Authors) + Destination City
 ## Role of Gemini & Graceful Degradation
 
 - **Role of the LLM**: Google Gemini (`gemini-3.5-flash-lite`) acts strictly as a narrative writer, not a discovery engine. Gemini is strictly prohibited from inventing places, fabricating attributes, using subjective filler words (*cozy*, *charming*, *legendary*), or naming user favorites in venue blurbs.
-- **Provenance Rule**: If a place does not have verified specialty dishes or an official description in Qloo's response, its blurb is strictly `null` (no filler text generated).
-- **Deadline Guard & Fail-Safe Fallback**: If total execution exceeds 40 seconds before writing or if Gemini API limits are reached, Taste Passport automatically falls back to a deterministic template (`meta.narration = "template"`), displaying all verified Qloo places and data without interruption.
+- **Provenance Rule**: If a place does not have specialty dishes or an official description in Qloo's response, its blurb is strictly `null` (no filler text generated).
+- **Deadline Guard & Fail-Safe Fallback**: If total execution exceeds 40 seconds before writing or if Gemini API limits are reached, Taste Passport automatically falls back to a deterministic template (`meta.narration = "template"`), displaying all places and data from Qloo without interruption.
 
 ---
 
@@ -113,6 +113,21 @@ User Favorites (Movies, Artists, Authors) + Destination City
 - **Metropolitan Coverage**: Qloo's place graph indexes major metropolitan areas (e.g. Greater Toronto, Greater London); suburban boundaries may extend beyond municipal city cores.
 - **Operating Hours & Reservations**: Taste Passport discovers cultural dining resonance and drops venues flagged closed by Qloo; it does not check live opening hours or table reservations.
 - **API Free-Tier Rate Limits**: Free-tier Gemini quota (15 RPM) is protected by in-memory caching and client-side IP rate limiting (6 runs/hour per IP).
+
+---
+
+## Evaluation Summary
+
+All figures are aggregate metrics derived from `docs/NUMBERS.md` and benchmarked via `scripts/baseline.ts` ($n = 5$ places recommended per profile, $n = 15$ total):
+
+| Profile | Destination | Cuisine Agreement with LLM | Matched in Metro Area ($n=5$) (Rough Indicator) |
+| :--- | :---: | :---: | :---: |
+| **Profile 1 (Kerala Favorites)** | Toronto | 2 / 3 (67%) | 2 / 5 (40%) |
+| **Profile 2 (Punjabi Favorites)** | London | 2 / 3 (67%) | 5 / 5 (100%) |
+| **Control (Indie/Western)** | Toronto | 0 / 3 (0%) | 4 / 5 (80%) |
+| **Overall Aggregate** | — | 4 / 9 (44.4%) | 11 / 15 (73.3%) |
+
+Results depend on which Qloo entity each favorite is resolved to; counts shown are examples.
 
 ---
 

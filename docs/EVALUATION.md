@@ -138,7 +138,7 @@ A comprehensive audit was performed across all 54 places returned across Profile
 | **Total Blurbs Evaluated** | 54 | 54 | 100% |
 | **Aggregate Content Word Match in Source** | **98.8%** (677 / 685 content words) | $\ge 80\%$ | **PASS** |
 
-**Grounding Rule**: If a place lacks verified menu dishes or descriptions in Qloo's data, its blurb is strictly `null`. Gemini is prohibited from adding subjective marketing filler; 98.8% of all content words (>3 letters, excluding standard stopwords) originate verbatim or via direct stem from Qloo's response properties.
+**Grounding Rule**: If a place lacks menu dishes or descriptions in Qloo's data, its blurb is strictly `null`. Gemini is prohibited from adding subjective marketing filler; 98.8% of all content words (>3 letters, excluding standard stopwords) originate verbatim or via direct stem from Qloo's response properties.
 
 ---
 

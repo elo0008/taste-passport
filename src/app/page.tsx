@@ -498,7 +498,7 @@ export default function HomePage() {
             <span>🤖 <strong>{result.meta.llmCalls}</strong> LLM calls</span>
             {result.meta.groundingViolations === 0 && (
               <span style={{ color: '#22543d', background: '#c6f6d5', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
-                ✓ Every place shown comes from Qloo's results ({totalPlacesCount} places verified)
+                ✓ Every place shown comes from Qloo's results ({totalPlacesCount} places from Qloo)
               </span>
             )}
             {result.meta.droppedCategories && result.meta.droppedCategories.length > 0 && (
