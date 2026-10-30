@@ -19,6 +19,7 @@ import {
   GroundingInputCategory,
 } from './grounding';
 import { resolveSingleFavorite, FavoriteType, TYPE_TO_URN } from './resolve-service';
+import { extractSafeImageUrl } from './images';
 
 export type { FavoriteType };
 
@@ -54,6 +55,7 @@ export interface FinalPlace {
   description?: string;
   affinity: number | null;
   blurb: string | null;
+  imageUrl?: string | null;
 }
 
 export interface FinalCategory {
@@ -623,6 +625,7 @@ export async function runPassportPipeline(
         description: desc,
         affinity: typeof p.popularity === 'number' ? p.popularity : null,
         blurb: null, // assigned in writing stage
+        imageUrl: extractSafeImageUrl(p),
       };
     });
 

@@ -1,5 +1,6 @@
 import { QlooClient } from './qloo';
 import { MemoryCache } from './cache';
+import { extractSafeImageUrl } from './images';
 
 export type FavoriteType = 'artist' | 'movie' | 'tv_show' | 'person' | 'podcast' | 'brand';
 
@@ -19,6 +20,7 @@ export interface ResolveCandidate {
   disambiguation?: string;
   year?: number;
   description?: string;
+  imageUrl?: string | null;
 }
 
 export interface FavoriteResolveResult {
@@ -61,6 +63,7 @@ export function shapeCandidate(item: any, fallbackType: string): ResolveCandidat
     disambiguation,
     year,
     description,
+    imageUrl: extractSafeImageUrl(item),
   };
 }
 
