@@ -52,6 +52,7 @@ export interface InsightsParams {
   filterTags?: string;
   filterLocationQuery?: string;
   take?: number;
+  offset?: number;
 }
 
 export interface QlooClientConfig {
@@ -270,6 +271,10 @@ export class QlooClient {
 
     if (params.take) {
       queryParams.take = params.take;
+    }
+
+    if (params.offset !== undefined) {
+      queryParams.offset = params.offset;
     }
 
     return await this.request<any>('/v2/insights', queryParams);
