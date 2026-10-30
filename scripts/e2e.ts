@@ -119,7 +119,7 @@ function printProfileSummary(profileTitle: string, res: any) {
 
 async function runE2E() {
   console.log('====================================================');
-  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 5)');
+  console.log('TASTE PASSPORT: END-TO-END PIPELINE VERIFICATION (PHASE 6)');
   console.log('====================================================\n');
 
   // ----------------------------------------------------

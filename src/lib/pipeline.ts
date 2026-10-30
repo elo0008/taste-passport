@@ -309,9 +309,41 @@ export async function runPassportPipeline(
 
   timings.inferMs = Math.round(performance.now() - inferStart);
 
-  // Categories are already ordered by specificity: ascending cSig (rarer tag first)
-  const topCuisines = inferenceRes.topCuisines;
-  const signalCheck = inferenceRes.signalCheck;
+  let activeTopCuisines = inferenceRes.topCuisines;
+  const activeSignalCheck = inferenceRes.signalCheck;
+  let activeResolved = resolved;
+  let selfCorrectionNotice: string | undefined = undefined;
+
+  // Task C: Noisy-signal self-correction
+  // If at least 2 favorites are "consistent" and at least 1 is "pulled in a different direction",
+  // rerun the combined enrichment and category assembly using ONLY the consistent favorites.
+  const consistentFavs = resolved.filter((r) => {
+    const sig = activeSignalCheck.find((s) => s.resolvedId === r.resolvedId);
+    return sig?.isConsistent;
+  });
+  const unalignedFavs = resolved.filter(
+    (r) => !consistentFavs.some((c) => c.resolvedId === r.resolvedId)
+  );
+
+  if (consistentFavs.length >= 2 && unalignedFavs.length >= 1) {
+    const unalignedNames = unalignedFavs.map((f) => f.resolvedName).join(', ');
+    selfCorrectionNotice = `Left out of the final search: ${unalignedNames} (pulled in a different direction)`;
+
+    emit({
+      type: 'progress',
+      stage: 'inferring_cuisines',
+      message: `Self-correcting: refining recommendations using consistent signals only (${consistentFavs.map((c) => c.resolvedName).join(', ')})...`,
+    });
+
+    const rerunStart = performance.now();
+    budget.track();
+    // Re-run inference with consistent favorites only
+    const rerunRes = await inferCuisinesFromTaste(client, input.destination, consistentFavs);
+    timings.inferMs += Math.round(performance.now() - rerunStart);
+
+    activeTopCuisines = rerunRes.topCuisines;
+    activeResolved = consistentFavs;
+  }
 
   // 5. Stage: QUERY PLACES PER INFERRED CUISINE + GROCERY RULE (Task B, C, F)
   emit({
@@ -333,7 +365,7 @@ export async function runPassportPipeline(
     isRuleBasedGrocery?: boolean;
   }
 
-  const categoryConfigs: CandidateCategoryConfig[] = topCuisines.map((t) => ({
+  const categoryConfigs: CandidateCategoryConfig[] = activeTopCuisines.map((t) => ({
     tagId: t.id,
     title: t.name,
     kind: 'inferred_cuisine',
@@ -344,7 +376,7 @@ export async function runPassportPipeline(
   }));
 
   // Check Grocery Rule (Task B)
-  const shouldAddGrocery = shouldAddGroceryCategory(topCuisines[0]);
+  const shouldAddGrocery = shouldAddGroceryCategory(activeTopCuisines[0]);
   if (shouldAddGrocery) {
     categoryConfigs.push({
       tagId: INDIAN_GROCERY_TAG,
@@ -358,7 +390,7 @@ export async function runPassportPipeline(
     });
   }
 
-  const resolvedSignalIds = resolved.map((r) => r.resolvedId);
+  const resolvedSignalIds = activeResolved.map((r) => r.resolvedId);
   const tagBaselines = new Map<string, string[]>();
   const categoryCombinedRaw = new Map<string, any[]>();
 
@@ -666,7 +698,7 @@ export async function runPassportPipeline(
     resolved,
     unresolvedFavorites,
     categories: assembledCategories,
-    signalCheck,
+    signalCheck: activeSignalCheck,
     firstMonth: writtenNarratives.firstMonth,
     meta: {
       qlooCalls: totalQlooCalls,
@@ -678,6 +710,7 @@ export async function runPassportPipeline(
       narration,
       notice:
         deadlineNotice ||
+        selfCorrectionNotice ||
         (narration === 'template'
           ? 'AI descriptions unavailable right now; showing data only'
           : undefined),

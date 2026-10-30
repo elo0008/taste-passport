@@ -458,3 +458,80 @@ describe('Phase 5 Signal Check & Grocery Coherence Gate (Task C & F)', () => {
     expect(failsGate).toBe(false);
   });
 });
+
+describe('Phase 6 Noisy-Signal Self-Correction (Task C)', () => {
+  it('triggers self-correction rerun when >=2 consistent and >=1 unaligned favorites', () => {
+    const favorites = [
+      { resolvedId: 'id1', resolvedName: 'Fav 1' },
+      { resolvedId: 'id2', resolvedName: 'Fav 2' },
+      { resolvedId: 'id3', resolvedName: 'Fav 3' },
+    ];
+    const signalCheck = [
+      { resolvedId: 'id1', isConsistent: true },
+      { resolvedId: 'id2', isConsistent: true },
+      { resolvedId: 'id3', isConsistent: false },
+    ];
+
+    const consistentFavs = favorites.filter((r) => {
+      const sig = signalCheck.find((s) => s.resolvedId === r.resolvedId);
+      return sig?.isConsistent;
+    });
+    const unalignedFavs = favorites.filter(
+      (r) => !consistentFavs.some((c) => c.resolvedId === r.resolvedId)
+    );
+
+    const shouldRerun = consistentFavs.length >= 2 && unalignedFavs.length >= 1;
+    expect(shouldRerun).toBe(true);
+
+    const unalignedNames = unalignedFavs.map((f) => f.resolvedName).join(', ');
+    const notice = `Left out of the final search: ${unalignedNames} (pulled in a different direction)`;
+    expect(notice).toBe('Left out of the final search: Fav 3 (pulled in a different direction)');
+    expect(consistentFavs.map((f) => f.resolvedId)).toEqual(['id1', 'id2']);
+  });
+
+  it('does NOT trigger self-correction rerun when all favorites are consistent', () => {
+    const favorites = [
+      { resolvedId: 'id1', resolvedName: 'Fav 1' },
+      { resolvedId: 'id2', resolvedName: 'Fav 2' },
+      { resolvedId: 'id3', resolvedName: 'Fav 3' },
+    ];
+    const signalCheck = [
+      { resolvedId: 'id1', isConsistent: true },
+      { resolvedId: 'id2', isConsistent: true },
+      { resolvedId: 'id3', isConsistent: true },
+    ];
+
+    const consistentFavs = favorites.filter((r) => {
+      const sig = signalCheck.find((s) => s.resolvedId === r.resolvedId);
+      return sig?.isConsistent;
+    });
+    const unalignedFavs = favorites.filter(
+      (r) => !consistentFavs.some((c) => c.resolvedId === r.resolvedId)
+    );
+
+    const shouldRerun = consistentFavs.length >= 2 && unalignedFavs.length >= 1;
+    expect(shouldRerun).toBe(false);
+  });
+
+  it('does NOT trigger self-correction rerun when fewer than 2 favorites are consistent', () => {
+    const favorites = [
+      { resolvedId: 'id1', resolvedName: 'Fav 1' },
+      { resolvedId: 'id2', resolvedName: 'Fav 2' },
+    ];
+    const signalCheck = [
+      { resolvedId: 'id1', isConsistent: true },
+      { resolvedId: 'id2', isConsistent: false },
+    ];
+
+    const consistentFavs = favorites.filter((r) => {
+      const sig = signalCheck.find((s) => s.resolvedId === r.resolvedId);
+      return sig?.isConsistent;
+    });
+    const unalignedFavs = favorites.filter(
+      (r) => !consistentFavs.some((c) => c.resolvedId === r.resolvedId)
+    );
+
+    const shouldRerun = consistentFavs.length >= 2 && unalignedFavs.length >= 1;
+    expect(shouldRerun).toBe(false);
+  });
+});
