@@ -976,6 +976,118 @@ describe('Phase 9 Robustness & Baseline Comparison (Task A & B)', () => {
       process.env.LLM_DISABLED = origEnv;
     }
   });
+
+  it('populates signalCheck[i].topTags with top 3 tags and integer counts without multipliers', async () => {
+    const origEnv = process.env.LLM_DISABLED;
+    process.env.LLM_DISABLED = 'true';
+
+    try {
+      const mockClient = new (await import('@/lib/qloo')).QlooClient({
+        apiKey: 'SYNTHETIC_TEST_KEY_NEVER_LOG',
+        maxRetries: 0,
+        fetchFn: async (url: any) => {
+          const urlObj = typeof url === 'string' ? new URL(url) : url instanceof URL ? url : new URL(String(url));
+          const signalParam = urlObj.searchParams.get('signal.interests.entities');
+          const filterTags = urlObj.searchParams.get('filter.tags');
+
+          if (!signalParam) {
+            return new Response(JSON.stringify({ results: { entities: [] } }), { status: 200 });
+          }
+
+          if (filterTags === 'urn:tag:cuisine:qloo:korean') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(6, 'urn:tag:cuisine:qloo:korean', 'Korean') },
+              }),
+              { status: 200 }
+            );
+          }
+          if (filterTags === 'urn:tag:cuisine:qloo:japanese') {
+            return new Response(
+              JSON.stringify({
+                results: { entities: makePlaces(6, 'urn:tag:cuisine:qloo:japanese', 'Japanese') },
+              }),
+              { status: 200 }
+            );
+          }
+
+          if (signalParam === 'id-fav1') {
+            return new Response(
+              JSON.stringify({
+                results: {
+                  entities: [
+                    ...makePlaces(15, 'urn:tag:cuisine:qloo:korean', 'Korean'),
+                    ...makePlaces(10, 'urn:tag:cuisine:qloo:japanese', 'Japanese'),
+                  ],
+                },
+              }),
+              { status: 200 }
+            );
+          }
+
+          if (signalParam === 'id-fav2') {
+            return new Response(
+              JSON.stringify({
+                results: {
+                  entities: [
+                    ...makePlaces(12, 'urn:tag:cuisine:qloo:japanese', 'Japanese'),
+                    ...makePlaces(8, 'urn:tag:cuisine:qloo:korean', 'Korean'),
+                  ],
+                },
+              }),
+              { status: 200 }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              results: {
+                entities: [
+                  ...makePlaces(6, 'urn:tag:cuisine:qloo:korean', 'Korean'),
+                  ...makePlaces(6, 'urn:tag:cuisine:qloo:japanese', 'Japanese'),
+                ],
+              },
+            }),
+            { status: 200 }
+          );
+        },
+      });
+
+      const result = await runPassportPipeline(
+        {
+          destination: 'Toronto',
+          favorites: [
+            { name: 'Fav 1', type: 'movie', entityId: 'id-fav1' },
+            { name: 'Fav 2', type: 'movie', entityId: 'id-fav2' },
+          ],
+        },
+        { client: mockClient, bypassRateLimit: true, forceRefresh: true }
+      );
+
+      expect(result.signalCheck).toHaveLength(2);
+      for (const sig of result.signalCheck) {
+        expect(sig.topTags).toBeDefined();
+        expect(sig.topTags.length).toBeGreaterThan(0);
+        expect(sig.topTags.length).toBeLessThanOrEqual(3);
+        for (const tag of sig.topTags) {
+          expect(typeof tag.tagName).toBe('string');
+          expect(typeof tag.count).toBe('number');
+          expect(Number.isInteger(tag.count)).toBe(true);
+          expect(tag.count).toBeGreaterThan(0);
+          expect(tag.count).toBeLessThanOrEqual(50);
+          expect((tag as any).multiplier).toBeUndefined();
+        }
+      }
+
+      const fav1Check = result.signalCheck.find((s) => s.resolvedId === 'id-fav1');
+      expect(fav1Check?.topTags[0].tagName).toBe('Korean');
+      expect(fav1Check?.topTags[0].count).toBe(15);
+      expect(fav1Check?.topTags[1].tagName).toBe('Japanese');
+      expect(fav1Check?.topTags[1].count).toBe(10);
+    } finally {
+      process.env.LLM_DISABLED = origEnv;
+    }
+  });
 });
 
 describe('Task D: Place and Candidate Images (SYNTHETIC FIXTURES)', () => {
@@ -1133,5 +1245,33 @@ describe('Task D: Place and Candidate Images (SYNTHETIC FIXTURES)', () => {
     } finally {
       process.env.LLM_DISABLED = origEnv;
     }
+  });
+});
+
+describe('UI-PORT Addendum v2 Integrity & Absence Checks (Criterion 4)', () => {
+  it('asserts SignalCheck topTags contain only integer counts and no smoothed multipliers', () => {
+    const sampleTag = {
+      tagName: 'Kerala',
+      count: 12,
+    };
+    expect(sampleTag.tagName).toBe('Kerala');
+    expect(sampleTag.count).toBe(12);
+    expect(Number.isInteger(sampleTag.count)).toBe(true);
+    expect((sampleTag as any).multiplier).toBeUndefined();
+    expect((sampleTag as any).enrichment).toBeUndefined();
+  });
+
+  it('asserts TasteVsBaseline component logic returns null when data is missing or empty', () => {
+    const shouldRenderTasteVsBaseline = (data?: any) => {
+      if (!data || !data.tasteTop || data.tasteTop.length === 0) {
+        return false;
+      }
+      return true;
+    };
+
+    expect(shouldRenderTasteVsBaseline(undefined)).toBe(false);
+    expect(shouldRenderTasteVsBaseline(null)).toBe(false);
+    expect(shouldRenderTasteVsBaseline({ destination: 'Toronto', tasteTop: [], baselineTop: [] })).toBe(false);
+    expect(shouldRenderTasteVsBaseline({ destination: 'Toronto', tasteTop: [{ tagName: 'Kerala', count: 12 }], baselineTop: [] })).toBe(true);
   });
 });

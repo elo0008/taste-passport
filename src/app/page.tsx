@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import type { PassportResult, PipelineProgressEvent, FavoriteType } from '@/lib/pipeline';
+import type { PassportResult, PipelineProgressEvent } from '@/lib/pipeline';
 import type { FavoriteResolveResult, ResolveCandidate } from '@/lib/resolve-service';
 
 import { Header } from '@/components/Header';
@@ -25,6 +25,24 @@ const DEFAULT_FAVORITES: FavoriteItemState[] = [
   { name: 'K. S. Chithra', type: 'artist' },
   { name: 'Vaikom Muhammad Basheer', type: 'person' },
 ];
+
+function scrollToTopAndFocus(headingId: string) {
+  if (typeof window === 'undefined') return;
+  const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stepper = document.getElementById('stepperNav') || document.querySelector('.stepper-nav');
+  if (stepper) {
+    stepper.scrollIntoView({ behavior: isReduced ? 'instant' : 'smooth', block: 'start' });
+  } else {
+    window.scrollTo({ top: 0, behavior: isReduced ? 'instant' : 'smooth' });
+  }
+
+  setTimeout(() => {
+    const el = document.getElementById(headingId);
+    if (el) {
+      el.focus({ preventScroll: true });
+    }
+  }, 100);
+}
 
 export default function HomePage() {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -73,6 +91,7 @@ export default function HomePage() {
         const data = await res.json().catch(() => ({}));
         setIsRateLimited(true);
         setRateLimitMessage(data.error || 'Rate limit reached. Maximum 6 requests per hour allowed.');
+        scrollToTopAndFocus('stateScreenHeading');
         return;
       }
 
@@ -94,8 +113,10 @@ export default function HomePage() {
       });
       setFavorites(updatedFavs);
       setCurrentStep(2);
+      scrollToTopAndFocus('step2Heading');
     } catch (err: any) {
       setError(err.message || 'Failed to search Qloo entity matches');
+      scrollToTopAndFocus('stateScreenHeading');
     } finally {
       setResolving(false);
     }
@@ -122,6 +143,7 @@ export default function HomePage() {
   const handleBackToStep1 = () => {
     setCurrentStep(1);
     setError(null);
+    scrollToTopAndFocus('step1Heading');
   };
 
   // Build Passport execution (Step 2 -> Step 3)
@@ -132,6 +154,7 @@ export default function HomePage() {
     setIsRateLimited(false);
     setResult(null);
     setCurrentProgress({ type: 'progress', stage: 'resolving', message: 'Connecting to Taste Passport...' });
+    scrollToTopAndFocus('loadingHeading');
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -162,6 +185,7 @@ export default function HomePage() {
         const data = await res.json().catch(() => ({}));
         setIsRateLimited(true);
         setRateLimitMessage(data.error || 'Rate limit reached. Maximum 6 requests per hour allowed.');
+        scrollToTopAndFocus('stateScreenHeading');
         return;
       }
 
@@ -195,6 +219,7 @@ export default function HomePage() {
             } else if (parsed.type === 'result') {
               setResult(parsed.data);
               setCurrentProgress(null);
+              scrollToTopAndFocus('resultsHeading');
             } else if (parsed.type === 'error') {
               throw new Error(parsed.error);
             }
@@ -207,8 +232,10 @@ export default function HomePage() {
       if (err.name === 'AbortError') {
         // User deliberately cancelled
         setCurrentStep(2);
+        scrollToTopAndFocus('step2Heading');
       } else {
         setError(err.message || 'An unexpected error occurred');
+        scrollToTopAndFocus('stateScreenHeading');
       }
     } finally {
       setLoading(false);
@@ -223,6 +250,7 @@ export default function HomePage() {
     }
     setLoading(false);
     setCurrentStep(2);
+    scrollToTopAndFocus('step2Heading');
   };
 
   // Reset / Edit handlers
@@ -230,6 +258,7 @@ export default function HomePage() {
     setCurrentStep(1);
     setResult(null);
     setResolveResults(null);
+    scrollToTopAndFocus('step1Heading');
   };
 
   const handleStartOver = () => {
@@ -240,6 +269,7 @@ export default function HomePage() {
     setResult(null);
     setError(null);
     setIsRateLimited(false);
+    scrollToTopAndFocus('step1Heading');
   };
 
   const isLimitedCoverage = Boolean(result && result.categories.length < 2);
@@ -271,6 +301,7 @@ export default function HomePage() {
               onRetry={() => {
                 setError(null);
                 if (currentStep === 3) setCurrentStep(2);
+                scrollToTopAndFocus(currentStep === 3 ? 'step2Heading' : 'step1Heading');
               }}
             />
           </div>
@@ -334,9 +365,9 @@ export default function HomePage() {
                 <CategorySection key={idx} category={category} />
               ))}
 
-              <SignalCheck signals={result.signalCheck} />
+              <SignalCheck signals={result.signalCheck} destination={result.destination} />
 
-              <TasteVsBaseline data={result.tasteVsBaseline} />
+              {result.tasteVsBaseline && <TasteVsBaseline data={result.tasteVsBaseline} />}
             </div>
           </div>
         ) : null}

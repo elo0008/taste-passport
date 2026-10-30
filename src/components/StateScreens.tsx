@@ -11,7 +11,7 @@ export function RateLimitScreen({ message, onReset }: RateLimitScreenProps) {
   return (
     <div className="state-screen-box">
       <div className="state-screen-icon">⏳</div>
-      <h3 className="state-screen-title">Rate Limit Reached</h3>
+      <h3 id="stateScreenHeading" tabIndex={-1} className="state-screen-title">Rate Limit Reached</h3>
       <p className="state-screen-desc">
         {message || 'Maximum 6 requests per hour allowed to protect API quotas. Please wait a short while before generating another passport.'}
       </p>
@@ -33,7 +33,7 @@ export function ErrorScreen({ error, onRetry }: ErrorScreenProps) {
   return (
     <div className="state-screen-box">
       <div className="state-screen-icon">⚠️</div>
-      <h3 className="state-screen-title">Something Went Wrong</h3>
+      <h3 id="stateScreenHeading" tabIndex={-1} className="state-screen-title">Something Went Wrong</h3>
       <p className="state-screen-desc">
         {error}
       </p>
@@ -56,7 +56,7 @@ export function LimitedCoverageScreen({ destination, categoryCount, onAdjust }: 
   return (
     <div className="state-screen-box">
       <div className="state-screen-icon">📍</div>
-      <h3 className="state-screen-title">Limited Coverage in {destination}</h3>
+      <h3 id="stateScreenHeading" tabIndex={-1} className="state-screen-title">Limited Coverage in {destination}</h3>
       <p className="state-screen-desc">
         Qloo found only {categoryCount} distinct category for this profile in the {destination} area.
         Try adding broader cultural artists or exploring a larger destination metropolitan area.
@@ -69,3 +69,4 @@ export function LimitedCoverageScreen({ destination, categoryCount, onAdjust }: 
     </div>
   );
 }
+

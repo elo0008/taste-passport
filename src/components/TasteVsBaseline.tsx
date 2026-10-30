@@ -8,21 +8,26 @@ interface TasteVsBaselineProps {
 }
 
 export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
-  if (!data) return null;
+  // Render ONLY if result.tasteVsBaseline exists with data; otherwise render nothing.
+  if (!data || !data.tasteTop || data.tasteTop.length === 0) {
+    return null;
+  }
+
+  const destination = data.destination || 'destination';
 
   return (
-    <section className="baseline-card">
+    <section className="baseline-card" style={{ marginTop: '50px' }}>
       <div className="baseline-header-area">
         <div>
-          <div className="passport-stamp" style={{ marginBottom: '8px' }}>
-            Affinity Benchmark
-          </div>
-          <h3>Taste vs Baseline Comparison</h3>
-          <p style={{ fontSize: '0.88rem', color: 'var(--color-ink-muted)' }}>
-            Top cuisines in Qloo&apos;s top 50 places for your taste vs an unguided {data.destination} baseline.
+          <h3 style={{ margin: '0 0 6px 0', fontSize: '1.65rem', fontWeight: 700 }}>
+            Your taste vs a generic {destination} area
+          </h3>
+          <p style={{ fontSize: '0.88rem', color: 'var(--color-ink-muted)', margin: 0, maxWidth: '680px', lineHeight: 1.5 }}>
+            The most common cuisine tags among the top 50 places Qloo returned for your taste, compared with the same query using no taste signals. A place can carry several tags.
           </p>
         </div>
 
+        {/* Legend using the exact two labels */}
         <div
           style={{
             fontSize: '0.82rem',
@@ -30,6 +35,7 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
             display: 'flex',
             alignItems: 'center',
             gap: '16px',
+            flexWrap: 'wrap',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -42,7 +48,7 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
                 display: 'inline-block',
               }}
             />
-            <span>Your Taste</span>
+            <span style={{ fontWeight: 600, color: 'var(--color-ink)' }}>Your taste</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span
@@ -54,7 +60,7 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
                 display: 'inline-block',
               }}
             />
-            <span>Generic Baseline</span>
+            <span style={{ fontWeight: 600, color: 'var(--color-ink)' }}>Generic {destination} baseline</span>
           </div>
         </div>
       </div>
@@ -65,11 +71,11 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
           <div className="baseline-panel-title-row">
             <div className="baseline-panel-title">
               <svg className="ui-icon" style={{ color: 'var(--color-terracotta)' }} viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
               </svg>
-              <span>Your Taste Profile</span>
+              <span>Your taste</span>
             </div>
-            <span className="baseline-pill-indicator taste">Top 50 Places</span>
+            <span className="baseline-pill-indicator taste">TOP 50 PLACES</span>
           </div>
 
           <div>
@@ -79,7 +85,7 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
                 <div key={idx} className="graph-bar-row">
                   <div className="graph-bar-label">
                     <span>{item.tagName}</span>
-                    <span>{item.count} / 50</span>
+                    <span className="graph-bar-count">{item.count} / 50</span>
                   </div>
                   <div className="graph-bar-track">
                     <div
@@ -93,7 +99,7 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
           </div>
         </div>
 
-        {/* Right Column: Generic Baseline */}
+        {/* Right Column: Generic Destination Baseline */}
         <div className="baseline-column-panel">
           <div className="baseline-panel-title-row">
             <div className="baseline-panel-title">
@@ -102,9 +108,9 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
                 <line x1="2" y1="12" x2="22" y2="12" />
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
-              <span>Generic {data.destination} Baseline</span>
+              <span>Generic {destination} baseline</span>
             </div>
-            <span className="baseline-pill-indicator generic">Top 50 Places</span>
+            <span className="baseline-pill-indicator generic">TOP 50 PLACES</span>
           </div>
 
           <div>
@@ -114,11 +120,11 @@ export function TasteVsBaseline({ data }: TasteVsBaselineProps) {
                 <div key={idx} className="graph-bar-row">
                   <div className="graph-bar-label">
                     <span>{item.tagName}</span>
-                    <span>{item.count} / 50</span>
+                    <span className="graph-bar-count">{item.count} / 50</span>
                   </div>
                   <div className="graph-bar-track">
                     <div
-                      className="graph-bar-fill"
+                      className="graph-bar-fill teal"
                       style={{ width: `${pct}%` }}
                     />
                   </div>

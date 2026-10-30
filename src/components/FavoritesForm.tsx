@@ -648,3 +648,4 @@ export function FavoritesForm({
     </section>
   );
 }
+

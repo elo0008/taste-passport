@@ -8,13 +8,16 @@ interface CandidateCardProps {
   candidate: ResolveCandidate;
   isSelected: boolean;
   onSelect: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
-export function CandidateCard({ candidate, isSelected, onSelect }: CandidateCardProps) {
+export function CandidateCard({ candidate, isSelected, onSelect, onKeyDown }: CandidateCardProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       onSelect();
+    } else if (onKeyDown) {
+      onKeyDown(e);
     }
   };
 
@@ -22,11 +25,20 @@ export function CandidateCard({ candidate, isSelected, onSelect }: CandidateCard
     <div
       role="radio"
       aria-checked={isSelected}
-      tabIndex={0}
+      tabIndex={isSelected ? 0 : -1}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
-      className={`candidate-card-box ${isSelected ? 'selected' : ''}`}
+      className={`candidate-card-clean ${isSelected ? 'selected' : ''}`}
     >
+      {/* Selection indication: ONLY a tick mark badge in top-right corner of selected card */}
+      {isSelected && (
+        <div className="candidate-tick-badge" aria-label="Selected" title="Selected">
+          <svg className="ui-icon" style={{ width: '14px', height: '14px' }} viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      )}
+
       <div className="candidate-top-split">
         <div className="candidate-thumb">
           <PlaceImage
@@ -36,41 +48,27 @@ export function CandidateCard({ candidate, isSelected, onSelect }: CandidateCard
             type="candidate"
           />
         </div>
+
         <div className="candidate-meta-text">
-          <div className="candidate-name">{candidate.name}</div>
-          {candidate.year && (
-            <div className="candidate-year-badge">{candidate.year}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+            {candidate.year && (
+              <span className="candidate-year-pill">{candidate.year}</span>
+            )}
+            <div className="candidate-name">{candidate.name}</div>
+          </div>
+
+          {(candidate.disambiguation || candidate.type) && (
+            <span className="candidate-tag-type">
+              {candidate.disambiguation || candidate.type}
+            </span>
           )}
-          {candidate.disambiguation ? (
-            <span className="candidate-tag-type">{candidate.disambiguation}</span>
-          ) : (
-            <span className="candidate-tag-type">{candidate.type}</span>
+
+          {candidate.description && (
+            <div className="candidate-desc-clamped">
+              {candidate.description}
+            </div>
           )}
         </div>
-      </div>
-
-      {candidate.description && (
-        <div className="candidate-desc">
-          {candidate.description}
-        </div>
-      )}
-
-      <div className="candidate-selection-status">
-        {isSelected ? (
-          <>
-            <svg className="ui-icon" viewBox="0 0 24 24">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            <span>Selected</span>
-          </>
-        ) : (
-          <>
-            <svg className="ui-icon" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" />
-            </svg>
-            <span>Click to select</span>
-          </>
-        )}
       </div>
     </div>
   );

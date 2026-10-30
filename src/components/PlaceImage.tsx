@@ -135,3 +135,4 @@ export function PlaceImage({
     </div>
   );
 }
+

@@ -22,6 +22,7 @@ import { resolveSingleFavorite, FavoriteType, TYPE_TO_URN } from './resolve-serv
 import { extractSafeImageUrl } from './images';
 
 export type { FavoriteType };
+export type { FavoriteSignalCheckTag } from './cuisine-inference';
 
 export interface FavoriteInput {
   name: string;

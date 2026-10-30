@@ -8,7 +8,7 @@ interface StepperProps {
 
 export function Stepper({ currentStep }: StepperProps) {
   return (
-    <nav className="stepper-nav" aria-label="Passport Creation Steps">
+    <nav className="stepper-nav" id="stepperNav" aria-label="Passport Creation Steps">
       <div className="container stepper-track">
         {/* Step 1 */}
         <div
@@ -49,3 +49,4 @@ export function Stepper({ currentStep }: StepperProps) {
     </nav>
   );
 }
+

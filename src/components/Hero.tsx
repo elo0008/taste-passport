@@ -33,6 +33,8 @@ export function Hero({ destination }: HeroProps) {
               <span>For people moving cities</span>
             </div>
             <h1
+              id="step1Heading"
+              tabIndex={-1}
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 'clamp(2.2rem, 4.4vw, 3.4rem)',
@@ -94,7 +96,7 @@ export function Hero({ destination }: HeroProps) {
             </div>
           </div>
 
-          {/* Hero Right: Cultural Taste Affinity Map Illustration */}
+          {/* Hero Right: Cultural Taste Map Illustration */}
           <div
             style={{
               background: '#FCFAF6',
@@ -499,3 +501,4 @@ export function Hero({ destination }: HeroProps) {
     </section>
   );
 }
+

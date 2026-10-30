@@ -8,9 +8,15 @@ export interface EnrichedCuisineTag {
   enrichment: number;
 }
 
+export interface FavoriteSignalCheckTag {
+  tagName: string;
+  count: number;
+}
+
 export interface FavoriteSignalCheck {
   favoriteName: string;
   resolvedId: string;
+  topTags: FavoriteSignalCheckTag[];
   enrichedTags: Array<{
     id: string;
     name: string;
@@ -90,7 +96,7 @@ export function extractCuisineTagsFromPlace(place: any): Array<{ id: string; nam
   return results;
 }
 
-export function computeTopTagsFromPlaces(places: any[]): Array<{ tagName: string; count: number }> {
+export function computeTopTagsFromPlaces(places: any[], limit: number = 5): Array<{ tagName: string; count: number }> {
   const counts: Record<string, { name: string; count: number }> = {};
   for (const p of places) {
     const seen = new Set<string>();
@@ -110,7 +116,7 @@ export function computeTopTagsFromPlaces(places: any[]): Array<{ tagName: string
 
   return Object.values(counts)
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-    .slice(0, 5)
+    .slice(0, limit)
     .map((c) => ({ tagName: c.name, count: c.count }));
 }
 
@@ -312,6 +318,9 @@ export async function inferCuisinesFromTaste(
       return true;
     }).slice(0, 3);
 
+    // Task 0: topTags (top 3) from favorite's single-signal top-50 places
+    const topTagsForFav = computeTopTagsFromPlaces(sPlaces, 3);
+
     // Task C: A favorite is "consistent" if its top-3 enriched tags intersect selected categories
     const isConsistent = topDistinct.some(
       (e) => selectedTagIds.has(e.id) || selectedTagNames.has(e.name.toLowerCase())
@@ -325,17 +334,18 @@ export async function inferCuisinesFromTaste(
       summary = `${fav.resolvedName}: did not visibly shape cuisines`;
     } else if (isConsistent) {
       statusLabel = 'consistent';
-      const items = topDistinct.map((e) => `${toTitleCase(e.name)} (${e.enrichment.toFixed(1)}x)`);
+      const items = topTagsForFav.map((t) => `${t.tagName} ${t.count}/50`);
       summary = `${fav.resolvedName} -> ${items.join(', ')}`;
     } else {
       statusLabel = 'Pulled in a different direction (not used for the categories above)';
-      const items = topDistinct.map((e) => `${toTitleCase(e.name)} (${e.enrichment.toFixed(1)}x)`);
+      const items = topTagsForFav.map((t) => `${t.tagName} ${t.count}/50`);
       summary = `${fav.resolvedName}: Pulled in a different direction (not used for the categories above) [${items.join(', ')}]`;
     }
 
     signalCheckResults.push({
       favoriteName: fav.resolvedName,
       resolvedId: fav.resolvedId,
+      topTags: topTagsForFav,
       enrichedTags: enrichedForFav,
       isConsistent,
       statusLabel,
