@@ -54,7 +54,6 @@ export const METRO_AREAS: Record<string, string[]> = {
     'scarborough',
     'etobicoke',
     'north york',
-    'york',
     'east york',
     'pickering',
     'ajax',
@@ -87,11 +86,11 @@ export const METRO_AREAS: Record<string, string[]> = {
     'havering',
     'hillingdon',
     'hounslow',
-    'kingston',
+    'kingston upon thames',
     'merton',
     'newham',
     'redbridge',
-    'richmond',
+    'richmond upon thames',
     'sutton',
     'tower hamlets',
     'waltham forest',
@@ -105,8 +104,20 @@ export const METRO_AREAS: Record<string, string[]> = {
 function isAddressInMetro(address: string, destination: string): boolean {
   const normAddr = address.toLowerCase();
   const destKey = destination.trim().toLowerCase();
-  const metroList = METRO_AREAS[destKey] || [destKey];
 
+  // 1. Country token requirement: Toronto -> "Canada" or ", ON"; London -> "United Kingdom", "UK", or "England"
+  if (destKey === 'toronto') {
+    const hasCountryToken = normAddr.includes('canada') || normAddr.includes(', on') || /\bon\b/.test(normAddr);
+    if (!hasCountryToken) return false;
+  } else if (destKey === 'london') {
+    const hasCountryToken = normAddr.includes('united kingdom') || /\buk\b/.test(normAddr) || normAddr.includes('england');
+    if (!hasCountryToken) return false;
+  } else {
+    if (!normAddr.includes(destKey)) return false;
+  }
+
+  // 2. Municipality requirement
+  const metroList = METRO_AREAS[destKey] || [destKey];
   return metroList.some((mun) => {
     const reg = new RegExp(`\\b${mun}\\b`, 'i');
     return reg.test(normAddr);
@@ -283,7 +294,7 @@ Respond in JSON matching:
 
   console.log('====================================================');
   console.log('SUMMARY TABLE: LLM-NAMED RESTAURANTS MATCHED TO QLOO PLACE IN TARGET METRO');
-  console.log('(A rough lower bound on verifiability, not a hallucination rate; n=5 per profile)');
+  console.log('(A rough indicator of verifiability, not a hallucination rate; n=5 per profile)');
   console.log('====================================================');
   console.table(
     resultsTable.map((r) => ({
