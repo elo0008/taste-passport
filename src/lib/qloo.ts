@@ -14,10 +14,14 @@ export class QlooApiError extends Error {
 
   public static sanitize(str: string): string {
     const key = process.env.QLOO_API_KEY;
+    let sanitized = str;
     if (key && key.length > 4) {
-      return str.split(key).join('[REDACTED]');
+      sanitized = sanitized.split(key).join('[REDACTED]');
     }
-    return str;
+    if (sanitized.includes('<html') || sanitized.includes('<!DOCTYPE') || sanitized.includes('<body')) {
+      sanitized = sanitized.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    return sanitized;
   }
 }
 
@@ -117,17 +121,19 @@ export class QlooClient {
         });
         clearTimeout(timer);
 
-        if (res.status === 429) {
+        if (res.status === 429 || res.status >= 500) {
           if (attempt <= this.maxRetries) {
             // Exponential backoff with jitter
             const backoff = delay * Math.pow(2, attempt - 1) + Math.random() * 100;
             await new Promise((resolve) => setTimeout(resolve, backoff));
             continue;
           }
-          throw new QlooApiError(`Rate limit exceeded (429) after ${this.maxRetries} retries`, {
-            status: 429,
-            endpoint,
-          });
+          if (res.status === 429) {
+            throw new QlooApiError(`Rate limit exceeded (429) after ${this.maxRetries} retries`, {
+              status: 429,
+              endpoint,
+            });
+          }
         }
 
         if (!res.ok) {
@@ -136,6 +142,9 @@ export class QlooClient {
             errText = await res.text();
           } catch {
             errText = res.statusText;
+          }
+          if (errText.includes('<html') || errText.includes('<!DOCTYPE') || errText.includes('<body')) {
+            errText = res.statusText || 'Server Error';
           }
           throw new QlooApiError(`Request failed with status ${res.status}: ${errText}`, {
             status: res.status,
