@@ -129,7 +129,7 @@ export function LoadingPipeline({ currentProgress, onCancel }: LoadingPipelinePr
             type="button"
             onClick={onCancel}
             className="btn-secondary"
-            style={{ minHeight: '38px', padding: '0 20px', fontSize: '0.86rem' }}
+            style={{ minHeight: '44px', padding: '0 24px', fontSize: '0.88rem', touchAction: 'manipulation' }}
           >
             Cancel
           </button>

@@ -22,16 +22,16 @@ export function Header() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: '72px',
+          height: '64px',
         }}
       >
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            gap: '10px',
             fontFamily: 'var(--font-display)',
-            fontSize: '1.35rem',
+            fontSize: '1.25rem',
             fontWeight: 700,
             letterSpacing: '-0.01em',
             color: 'var(--color-ink)',
@@ -40,8 +40,8 @@ export function Header() {
           <div
             aria-hidden="true"
             style={{
-              width: '38px',
-              height: '38px',
+              width: '36px',
+              height: '36px',
               borderRadius: '50%',
               background: 'var(--color-terracotta-light)',
               border: '1.5px solid var(--color-terracotta)',
@@ -49,6 +49,7 @@ export function Header() {
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--color-terracotta)',
+              flexShrink: 0,
             }}
           >
             <svg className="ui-icon" viewBox="0 0 24 24">
@@ -58,6 +59,7 @@ export function Header() {
           </div>
           <span>Taste Passport</span>
           <span
+            className="header-subtitle"
             style={{
               fontFamily: 'var(--font-body)',
               fontSize: '0.82rem',
@@ -72,4 +74,3 @@ export function Header() {
     </header>
   );
 }
-

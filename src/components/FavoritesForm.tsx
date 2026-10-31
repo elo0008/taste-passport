@@ -194,6 +194,7 @@ export function FavoritesForm({
     <section className="step1-section" id="step1Section" style={{ padding: '40px 0 60px' }}>
       <div className="container">
         <div
+          className="step1-form-card"
           style={{
             background: 'var(--bg-surface)',
             border: '1px solid var(--color-hairline)',
@@ -215,6 +216,8 @@ export function FavoritesForm({
                 fontWeight: 600,
                 color: 'var(--color-ink)',
                 marginBottom: '10px',
+                flexWrap: 'wrap',
+                gap: '4px',
               }}
             >
               <span>Destination City:</span>
@@ -242,15 +245,21 @@ export function FavoritesForm({
                 value={destination}
                 onChange={(e) => onDestinationChange(e.target.value)}
                 placeholder="e.g. Toronto, London, New York"
+                autoCorrect="off"
+                autoCapitalize="words"
+                spellCheck={false}
+                inputMode="text"
                 style={{
                   width: '100%',
                   height: '52px',
+                  minHeight: '48px',
                   padding: '0 18px 0 48px',
                   background: 'var(--bg-page)',
                   border: '1.5px solid var(--color-hairline-strong)',
                   borderRadius: 'var(--radius-md)',
                   color: 'var(--color-ink)',
-                  fontSize: '1rem',
+                  fontSize: '16px',
+                  touchAction: 'manipulation',
                 }}
               />
             </div>
@@ -274,6 +283,7 @@ export function FavoritesForm({
                   type="button"
                   onClick={() => handleApplyPreset(preset)}
                   style={{
+                    minHeight: '36px',
                     padding: '6px 14px',
                     background: 'var(--bg-subtle)',
                     border: '1px solid var(--color-hairline)',
@@ -285,6 +295,7 @@ export function FavoritesForm({
                     alignItems: 'center',
                     gap: '6px',
                     transition: 'all var(--transition-fast)',
+                    touchAction: 'manipulation',
                   }}
                 >
                   <svg style={{ width: '13px', height: '13px', color: 'var(--color-terracotta)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -325,6 +336,7 @@ export function FavoritesForm({
 
             {/* Grid of Favorites */}
             <div
+              className="fav-items-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
@@ -339,21 +351,17 @@ export function FavoritesForm({
                   <div
                     key={idx}
                     role="listitem"
+                    className="fav-row-card"
                     style={{
                       background: isEditingThis ? 'var(--color-saffron-light)' : 'var(--bg-surface-elevated)',
                       border: isEditingThis
                         ? '1.5px solid var(--color-saffron)'
                         : '1.5px solid var(--color-hairline-strong)',
                       borderRadius: 'var(--radius-md)',
-                      padding: '14px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '12px',
                       boxShadow: 'var(--shadow-sm)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <div className="fav-row-main">
                       <div
                         style={{
                           width: '38px',
@@ -370,8 +378,9 @@ export function FavoritesForm({
                       >
                         {getTypeIcon(fav.type)}
                       </div>
-                      <div style={{ minWidth: 0 }}>
+                      <div className="fav-name-col" style={{ minWidth: 0, flex: 1 }}>
                         <div
+                          className="fav-name-text"
                           style={{
                             fontWeight: 600,
                             fontSize: '0.95rem',
@@ -384,6 +393,7 @@ export function FavoritesForm({
                           {fav.name}
                         </div>
                         <div
+                          className="fav-type-badge-desktop"
                           style={{
                             fontSize: '0.74rem',
                             textTransform: 'uppercase',
@@ -396,60 +406,57 @@ export function FavoritesForm({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(idx)}
-                        aria-label={`Edit ${fav.name}`}
+                    <div className="fav-actions-group">
+                      <div
+                        className="fav-type-badge-mobile"
                         style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: 'var(--radius-sm)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          fontSize: '0.74rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
                           color: 'var(--color-ink-muted)',
-                          background: 'var(--bg-page)',
-                          border: '1px solid var(--color-hairline)',
                         }}
                       >
-                        <svg style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(idx)}
-                        disabled={favorites.length <= 3}
-                        aria-label={`Delete ${fav.name}`}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: 'var(--radius-sm)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: favorites.length <= 3 ? '#cbd5e1' : 'var(--color-brick)',
-                          background: 'var(--bg-page)',
-                          border: '1px solid var(--color-hairline)',
-                          cursor: favorites.length <= 3 ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        <svg style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
+                        {getTypeLabel(fav.type)}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(idx)}
+                          aria-label={`Edit ${fav.name}`}
+                          className="fav-action-btn"
+                        >
+                          <svg style={{ width: '15px', height: '15px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(idx)}
+                          disabled={favorites.length <= 3}
+                          aria-label={`Delete ${fav.name}`}
+                          className="fav-action-btn"
+                          style={{
+                            color: favorites.length <= 3 ? '#cbd5e1' : 'var(--color-brick)',
+                            cursor: favorites.length <= 3 ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          <svg style={{ width: '15px', height: '15px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Add / Edit Dock Card (matching Image 1 design) */}
+            {/* Add / Edit Dock Card */}
             {(canAddMore || editingIndex !== null) && (
               <div
+                className="fav-dock-card"
                 style={{
                   background: 'rgba(250, 248, 245, 0.85)',
                   border: '1.5px dashed #D6CEC3',
@@ -473,6 +480,7 @@ export function FavoritesForm({
                 </div>
 
                 <div
+                  className="fav-dock-inputs"
                   style={{
                     display: 'flex',
                     gap: '12px',
@@ -486,6 +494,10 @@ export function FavoritesForm({
                     onChange={(e) => setInputName(e.target.value)}
                     placeholder="Name of favorite..."
                     aria-label="Name of favorite"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    inputMode="text"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -495,13 +507,15 @@ export function FavoritesForm({
                     style={{
                       flex: '1 1 240px',
                       height: '48px',
+                      minHeight: '48px',
                       padding: '0 16px',
                       background: '#FFFFFF',
                       border: '1px solid #E5DFD5',
                       borderRadius: '12px',
                       color: 'var(--color-ink)',
-                      fontSize: '0.95rem',
+                      fontSize: '16px',
                       outline: 'none',
+                      touchAction: 'manipulation',
                     }}
                   />
 
@@ -509,16 +523,19 @@ export function FavoritesForm({
                     value={inputType}
                     onChange={(e) => setInputType(e.target.value as FavoriteType)}
                     aria-label="Category of favorite"
+                    className="fav-dock-select"
                     style={{
                       width: '180px',
                       height: '48px',
+                      minHeight: '48px',
                       padding: '0 16px',
                       background: '#FFFFFF',
                       border: '1px solid #E5DFD5',
                       borderRadius: '12px',
                       color: 'var(--color-ink)',
-                      fontSize: '0.92rem',
+                      fontSize: '16px',
                       outline: 'none',
+                      touchAction: 'manipulation',
                     }}
                   >
                     <option value="movie">Movie</option>
@@ -527,24 +544,28 @@ export function FavoritesForm({
                     <option value="tv_show">TV Show</option>
                   </select>
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className="fav-dock-btn-group" style={{ display: 'flex', gap: '8px' }}>
                     <button
                       type="button"
                       onClick={handleSubmitDock}
+                      className="btn-dock-submit"
                       style={{
                         height: '48px',
+                        minHeight: '48px',
                         padding: '0 24px',
                         background: 'var(--color-terracotta)',
                         color: '#FFFFFF',
                         fontWeight: 600,
-                        fontSize: '0.92rem',
+                        fontSize: '0.95rem',
                         border: 'none',
                         borderRadius: '12px',
                         display: 'inline-flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '8px',
                         cursor: 'pointer',
                         boxShadow: '0 2px 6px rgba(216, 96, 40, 0.25)',
+                        touchAction: 'manipulation',
                       }}
                     >
                       <svg style={{ width: '15px', height: '15px', strokeWidth: 2.5 }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -558,13 +579,15 @@ export function FavoritesForm({
                         onClick={handleCancelEdit}
                         style={{
                           height: '48px',
+                          minHeight: '48px',
                           padding: '0 16px',
                           background: '#FFFFFF',
                           border: '1px solid #E5DFD5',
                           borderRadius: '12px',
-                          fontSize: '0.88rem',
+                          fontSize: '0.92rem',
                           color: 'var(--color-ink-muted)',
                           cursor: 'pointer',
+                          touchAction: 'manipulation',
                         }}
                       >
                         Cancel
@@ -598,7 +621,7 @@ export function FavoritesForm({
             )}
           </div>
 
-          {/* Primary CTA (Image 1 design) */}
+          {/* Primary CTA */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               type="button"
@@ -607,6 +630,7 @@ export function FavoritesForm({
               disabled={!canFindMatches}
               style={{
                 width: '100%',
+                minHeight: '48px',
                 height: '52px',
                 borderRadius: 'var(--radius-pill)',
                 fontSize: '1.02rem',
@@ -620,6 +644,7 @@ export function FavoritesForm({
                 border: 'none',
                 cursor: canFindMatches ? 'pointer' : 'not-allowed',
                 boxShadow: '0 2px 8px rgba(19, 78, 74, 0.2)',
+                touchAction: 'manipulation',
               }}
             >
               {resolving ? (
@@ -644,30 +669,41 @@ export function FavoritesForm({
             </p>
           </div>
 
-          {/* How It Works Disclosure Box */}
-          <div
+          {/* How It Works Disclosure Box (Collapsible on mobile) */}
+          <details
+            className="how-it-works-details"
             style={{
               marginTop: '36px',
-              paddingTop: '24px',
+              paddingTop: '20px',
               borderTop: '1px solid var(--color-hairline)',
             }}
           >
-            <h3
+            <summary
+              className="how-it-works-summary"
               style={{
                 fontSize: '0.95rem',
                 fontWeight: 700,
                 color: 'var(--color-ink)',
-                marginBottom: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 0',
+                userSelect: 'none',
               }}
             >
-              How it works / What this does not do:
-            </h3>
+              <span>How it works / What this does not do:</span>
+              <svg className="how-it-works-chevron" style={{ width: '18px', height: '18px', color: 'var(--color-ink-muted)', transition: 'transform 200ms ease' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </summary>
             <ul
               style={{
                 paddingLeft: '20px',
                 fontSize: '0.88rem',
                 color: 'var(--color-ink-muted)',
                 lineHeight: 1.7,
+                marginTop: '12px',
               }}
             >
               <li>Cuisines and places are derived from Qloo taste graph tags and baseline comparison.</li>
@@ -682,10 +718,9 @@ export function FavoritesForm({
               </li>
               <li>Grocery categories are rule-based and retained only when meeting the coherence gate.</li>
             </ul>
-          </div>
+          </details>
         </div>
       </div>
     </section>
   );
 }
-

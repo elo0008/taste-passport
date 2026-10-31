@@ -50,7 +50,7 @@ export function Step2Disambiguation({
   };
 
   return (
-    <div className="step2-wrapper">
+    <div className="step2-wrapper" id="step2Wrapper">
       <div className="container">
         <div className="step2-header-block">
           <div className="passport-stamp" style={{ marginBottom: '12px' }}>
@@ -89,7 +89,7 @@ export function Step2Disambiguation({
                     onClick={() => onSkipFavorite(favIdx)}
                     disabled={!canSkip || building}
                     className="btn-secondary"
-                    style={{ minHeight: '38px', padding: '0 16px', fontSize: '0.84rem' }}
+                    style={{ minHeight: '44px', padding: '0 16px', fontSize: '0.84rem', touchAction: 'manipulation' }}
                     title={
                       canSkip
                         ? 'Remove this favorite from the recommendation pipeline'
@@ -149,6 +149,7 @@ export function Step2Disambiguation({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
+                      flexWrap: 'wrap',
                     }}
                   >
                     <span style={{ color: 'var(--color-terracotta)', fontWeight: 600 }}>Selected:</span>
@@ -168,7 +169,8 @@ export function Step2Disambiguation({
             type="button"
             onClick={onBack}
             disabled={building}
-            className="btn-secondary"
+            className="btn-secondary btn-step2-back"
+            style={{ touchAction: 'manipulation' }}
           >
             ← Back
           </button>
@@ -177,7 +179,8 @@ export function Step2Disambiguation({
             type="button"
             onClick={onBuildPassport}
             disabled={building || activeFavoritesCount < 2}
-            className="btn-primary-large"
+            className="btn-primary-large btn-step2-submit"
+            style={{ touchAction: 'manipulation' }}
           >
             {building ? (
               <>

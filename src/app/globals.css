@@ -62,6 +62,9 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 body {
@@ -73,7 +76,10 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -607,6 +613,45 @@ div[tabindex="0"]:focus-visible {
 }
 
 @media (max-width: 639px) {
+
+  .fav-row-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 12px 14px !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .fav-row-main {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .fav-type-badge-desktop {
+    display: none !important;
+  }
+
+  .fav-type-badge-mobile {
+    display: block !important;
+  }
+
+  .fav-actions-group {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed var(--color-hairline) !important;
+    box-sizing: border-box !important;
+  }
+
   .pipeline-stage-card.fixed-height-card {
     height: 480px !important;
     min-height: 480px !important;
@@ -1626,4 +1671,533 @@ div[tabindex="0"]:focus-visible {
   .graph-bar-fill {
     transition: none !important;
   }
+}
+
+
+/* -------------------------------------------------------------------------
+   MOBILE RESPONSIVENESS & PERFORMANCE (MOBILE POLISH)
+   ------------------------------------------------------------------------- */
+
+/* Universal touch optimization and tap delay elimination */
+button, input, select, textarea, a, [role="button"], [role="radio"] {
+  touch-action: manipulation;
+}
+
+button:active:not(:disabled),
+a:active,
+.candidate-card-clean:active,
+.week-place-anchor:active {
+  transform: scale(0.98);
+}
+
+/* iOS Safari font zoom prevention on inputs and selects */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Hero Grid Layout */
+.hero-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: center;
+  width: 100%;
+}
+
+@media (min-width: 820px) {
+  .hero-grid-layout {
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+  }
+}
+
+/* Category Jump Navigation Bar */
+.category-jump-nav {
+  position: relative;
+  margin-bottom: 28px;
+  width: 100%;
+}
+
+.category-jump-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 2px;
+}
+
+.category-jump-track::-webkit-scrollbar {
+  display: none;
+}
+
+.category-jump-pill {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  min-height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--color-hairline-strong);
+  color: var(--color-ink);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  touch-action: manipulation;
+  transition: all var(--transition-fast);
+}
+
+.category-jump-pill:hover,
+.category-jump-pill:active {
+  background: var(--color-terracotta-light);
+  border-color: var(--color-terracotta);
+  color: var(--color-terracotta);
+}
+
+/* Typography clamp scale so headings never exceed 2 lines at 360px */
+.category-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 4.5vw, 1.85rem) !important;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.25;
+}
+
+.step2-header-block h2 {
+  font-size: clamp(1.35rem, 5vw, 2.2rem) !important;
+  line-height: 1.25;
+}
+
+.settling-guide-header h3,
+.settling-guide-header h2 {
+  font-size: clamp(1.3rem, 4.5vw, 1.65rem) !important;
+}
+
+.baseline-header-area h3 {
+  font-size: clamp(1.25rem, 4.5vw, 1.65rem) !important;
+}
+
+.signal-check-header h3 {
+  font-size: clamp(1.25rem, 4.5vw, 1.65rem) !important;
+}
+
+/* Ambient motion and filter budget for mobile */
+@media (max-width: 767px) {
+  .dynamic-bg-container {
+    display: none !important;
+  }
+
+  .ambient-drift-single {
+    animation: none !important;
+  }
+}
+
+/* Comprehensive Mobile Layout (< 640px) */
+@media (max-width: 639px) {
+  .container {
+    padding: 0 16px !important;
+  }
+
+  /* Header */
+  .header-subtitle {
+    display: none !important;
+  }
+
+  /* Stepper on mobile: numbers with active label only, not taller than 56px, no wrapping */
+  .stepper-nav {
+    padding: 10px 0 !important;
+    max-height: 56px !important;
+  }
+
+  .stepper-track {
+    gap: 8px !important;
+    justify-content: center !important;
+  }
+
+  .step-item {
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .step-item:not(.active) .step-label {
+    display: none !important;
+  }
+
+  .step-item.active .step-label {
+    display: inline-block !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    max-width: 160px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .step-line {
+    width: 16px !important;
+    min-width: 12px !important;
+    flex-shrink: 1 !important;
+  }
+
+  .step-badge {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 0.78rem !important;
+  }
+
+  /* Step 1 Favorites Form */
+  .step1-section {
+    padding: 20px 0 36px !important;
+  }
+
+  .step1-form-card {
+    padding: 20px 16px !important;
+    border-radius: var(--radius-lg) !important;
+    margin-bottom: 24px !important;
+  }
+
+  .fav-items-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .fav-row-card {
+    padding: 12px 14px !important;
+  }
+
+  .fav-action-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .fav-dock-card {
+    padding: 18px 16px !important;
+  }
+
+  .fav-dock-inputs {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .fav-dock-inputs input,
+  .fav-dock-inputs select,
+  .fav-dock-inputs .fav-dock-select {
+    width: 100% !important;
+    flex: none !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    font-size: 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  .fav-dock-btn-group {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .fav-dock-btn-group button,
+  .btn-dock-submit {
+    width: 100% !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+    font-size: 0.95rem !important;
+  }
+
+  .how-it-works-details[open] .how-it-works-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* Step 2 Disambiguation */
+  .step2-wrapper {
+    padding: 24px 0 calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .step2-header-block {
+    margin-bottom: 20px !important;
+  }
+
+  .step2-group-card {
+    padding: 18px 16px !important;
+    margin-bottom: 18px !important;
+    border-radius: var(--radius-lg) !important;
+  }
+
+  .step2-candidates-grid-3col {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .candidate-card-clean {
+    padding: 14px 12px !important;
+  }
+
+  .candidate-thumb {
+    width: 72px !important;
+    min-width: 72px !important;
+    height: 96px !important;
+  }
+
+  .candidate-desc-clamped {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  /* Sticky bottom action bar for Step 2 */
+  .step2-actions-bar {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 100 !important;
+    background: rgba(250, 246, 239, 0.96) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border-top: 1px solid var(--color-hairline-strong) !important;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) 16px !important;
+    margin-top: 0 !important;
+    box-shadow: 0 -4px 16px rgba(21, 34, 43, 0.08) !important;
+    display: flex !important;
+    gap: 12px !important;
+    justify-content: space-between !important;
+  }
+
+  .btn-step2-back {
+    flex: 0 0 auto !important;
+    min-height: 48px !important;
+    padding: 0 16px !important;
+  }
+
+  .btn-step2-submit {
+    flex: 1 !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+    padding: 0 16px !important;
+  }
+
+  /* Step 3 Loading Pipeline */
+  .loading-pipeline-view {
+    padding: 32px 0 !important;
+  }
+
+  .pipeline-stage-card.fixed-height-card {
+    height: 480px !important;
+    min-height: 480px !important;
+    max-height: 480px !important;
+    padding: 24px 18px !important;
+  }
+
+  /* Step 3 Results */
+  .results-view-wrap {
+    padding: 20px 0 60px !important;
+  }
+
+  .category-jump-nav::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28px;
+    background: linear-gradient(to right, transparent, var(--bg-page));
+    pointer-events: none;
+  }
+
+  .results-actions-top-bar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .results-actions-top-bar .btn-action-edit,
+  .results-actions-top-bar .btn-action-reset {
+    min-height: 48px !important;
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0 10px !important;
+  }
+
+  .results-actions-top-bar .btn-action-copy {
+    grid-column: 1 / -1 !important;
+    min-height: 48px !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Settling Guide Week Cards */
+  .settling-guide-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .week-settling-card {
+    padding: 20px 16px !important;
+  }
+
+  .week-places-list {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .week-place-anchor {
+    min-height: 40px !important;
+    padding: 8px 14px !important;
+    border: 1px solid var(--color-hairline) !important;
+    background: var(--bg-surface) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 0.84rem !important;
+  }
+
+  /* Place Cards */
+  .place-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  .place-card {
+    scroll-margin-top: 80px;
+  }
+
+  .place-actions-row {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .action-icon-circle-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .place-address {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+  }
+
+  /* Signal Check */
+  .signal-check-container {
+    padding: 24px 16px !important;
+  }
+
+  .signal-check-cards-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .signal-card-box {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* Taste vs Baseline */
+  .baseline-card {
+    padding: 24px 16px !important;
+  }
+
+  .baseline-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .baseline-column-panel {
+    padding: 18px 14px !important;
+  }
+
+  /* State Screens */
+  .state-screen-box {
+    padding: 32px 18px !important;
+    margin: 24px auto !important;
+  }
+
+  .btn-state-action {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+}
+
+
+/* Desktop Favorite Row */
+.fav-row-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.fav-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.fav-name-col {
+  min-width: 0;
+  flex: 1;
+}
+
+.fav-name-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-type-badge-desktop {
+  display: block;
+}
+
+.fav-type-badge-mobile {
+  display: none;
+}
+
+.fav-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fav-action-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-muted);
+  background: var(--bg-page);
+  border: 1px solid var(--color-hairline);
+  touch-action: manipulation;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.fav-action-btn:hover:not(:disabled) {
+  border-color: var(--color-terracotta);
+  color: var(--color-terracotta);
 }

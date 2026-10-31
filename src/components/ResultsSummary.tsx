@@ -55,7 +55,7 @@ export function ResultsSummary({ result, onEditFavorites, onStartOver }: Results
         <div className="notice-banner-strip neutral" role="status" style={{ marginBottom: '16px' }}>
           <svg
             className="ui-icon"
-            style={{ color: 'var(--color-ink-muted)', width: '20px', height: '20px' }}
+            style={{ color: 'var(--color-ink-muted)', width: '20px', height: '20px', flexShrink: 0 }}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -65,13 +65,13 @@ export function ResultsSummary({ result, onEditFavorites, onStartOver }: Results
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
           </svg>
-          <div style={{ fontSize: '0.9rem', color: 'var(--color-ink)', fontWeight: 500 }}>
+          <div style={{ fontSize: '0.9rem', color: 'var(--color-ink)', fontWeight: 500, overflowWrap: 'break-word' }}>
             {result.meta.notice}
           </div>
         </div>
       )}
 
-      {/* Row 1: Metrics on left, Provenance on right (Image 3 design) */}
+      {/* Row 1: Metrics on left, Provenance on right */}
       <div className="results-header-metric-row">
         <div className="results-metrics-group">
           <div className="metric-pill-chip" title="Total response latency">
@@ -129,12 +129,13 @@ export function ResultsSummary({ result, onEditFavorites, onStartOver }: Results
         )}
       </div>
 
-      {/* Row 2: Actions Bar */}
+      {/* Row 2: Actions Bar (2-col grid + full-width copy button on mobile) */}
       <div className="results-actions-top-bar">
         <button
           type="button"
           onClick={onEditFavorites}
-          className="btn-action-pill"
+          className="btn-action-pill btn-action-edit"
+          style={{ touchAction: 'manipulation' }}
         >
           <svg className="ui-icon" style={{ width: '15px', height: '15px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -146,7 +147,8 @@ export function ResultsSummary({ result, onEditFavorites, onStartOver }: Results
         <button
           type="button"
           onClick={onStartOver}
-          className="btn-action-pill"
+          className="btn-action-pill btn-action-reset"
+          style={{ touchAction: 'manipulation' }}
         >
           <svg className="ui-icon" style={{ width: '15px', height: '15px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="1 4 1 10 7 10" />
@@ -158,7 +160,8 @@ export function ResultsSummary({ result, onEditFavorites, onStartOver }: Results
         <button
           type="button"
           onClick={handleCopyPlan}
-          className="btn-action-pill"
+          className="btn-action-pill btn-action-copy"
+          style={{ touchAction: 'manipulation' }}
         >
           <svg className="ui-icon" style={{ width: '15px', height: '15px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />

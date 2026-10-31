@@ -25,7 +25,7 @@ export function Stepper({ currentStep }: StepperProps) {
               '1'
             )}
           </span>
-          <span>Destination &amp; Favorites</span>
+          <span className="step-label">Destination &amp; Favorites</span>
         </div>
 
         <div className={`step-line ${currentStep > 1 ? 'filled' : ''}`} aria-hidden="true" />
@@ -45,7 +45,7 @@ export function Stepper({ currentStep }: StepperProps) {
               '2'
             )}
           </span>
-          <span>Confirm Cultural Matches</span>
+          <span className="step-label">Confirm Cultural Matches</span>
         </div>
 
         <div className={`step-line ${currentStep > 2 ? 'filled' : ''}`} aria-hidden="true" />
@@ -55,10 +55,9 @@ export function Stepper({ currentStep }: StepperProps) {
           <span className="step-badge" aria-hidden="true">
             3
           </span>
-          <span>Taste Passport</span>
+          <span className="step-label">Taste Passport</span>
         </div>
       </div>
     </nav>
   );
 }
-

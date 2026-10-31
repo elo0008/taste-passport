@@ -6,13 +6,15 @@ import { PlaceCard } from './PlaceCard';
 
 interface CategorySectionProps {
   category: FinalCategory;
+  categoryIndex?: number;
 }
 
-export function CategorySection({ category }: CategorySectionProps) {
+export function CategorySection({ category, categoryIndex }: CategorySectionProps) {
   const isGrocery = category.kind === 'grocery';
+  const slugId = `category-${category.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
   return (
-    <section className="category-section-block">
+    <section className="category-section-block" id={slugId}>
       <div className="category-header-row">
         <div className="category-title-group">
           <h3 className="category-title">{category.title}</h3>

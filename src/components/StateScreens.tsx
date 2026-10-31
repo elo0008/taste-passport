@@ -21,7 +21,12 @@ export function RateLimitScreen({ message, onReset }: RateLimitScreenProps) {
         {message || 'Maximum 6 requests per hour allowed to protect API quotas. Please wait a short while before generating another passport.'}
       </p>
       <div className="state-screen-actions">
-        <button type="button" onClick={onReset} className="btn-secondary">
+        <button
+          type="button"
+          onClick={onReset}
+          className="btn-secondary btn-state-action"
+          style={{ minHeight: '48px', padding: '0 24px', touchAction: 'manipulation' }}
+        >
           Return to Input Form
         </button>
       </div>
@@ -49,7 +54,12 @@ export function ErrorScreen({ error, onRetry }: ErrorScreenProps) {
         {error}
       </p>
       <div className="state-screen-actions">
-        <button type="button" onClick={onRetry} className="btn-secondary">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="btn-secondary btn-state-action"
+          style={{ minHeight: '48px', padding: '0 24px', touchAction: 'manipulation' }}
+        >
           ← Try Again
         </button>
       </div>
@@ -78,11 +88,15 @@ export function LimitedCoverageScreen({ destination, categoryCount, onAdjust }: 
         Try adding broader cultural artists or exploring a larger destination metropolitan area.
       </p>
       <div className="state-screen-actions">
-        <button type="button" onClick={onAdjust} className="btn-secondary">
+        <button
+          type="button"
+          onClick={onAdjust}
+          className="btn-secondary btn-state-action"
+          style={{ minHeight: '48px', padding: '0 24px', touchAction: 'manipulation' }}
+        >
           Adjust Favorites & Destination
         </button>
       </div>
     </div>
   );
 }
-

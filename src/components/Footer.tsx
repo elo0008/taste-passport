@@ -6,7 +6,12 @@ export function Footer() {
   const repoUrl = process.env.NEXT_PUBLIC_REPO_URL;
 
   return (
-    <footer className="site-footer">
+    <footer
+      className="site-footer"
+      style={{
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div className="container site-footer-inner">
         <span>Powered by the Qloo API.</span>
         {repoUrl && (
@@ -26,4 +31,3 @@ export function Footer() {
     </footer>
   );
 }
-

@@ -19,13 +19,7 @@ export function Hero({ destination }: HeroProps) {
     >
       <div className="container">
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '48px',
-            alignItems: 'center',
-            width: '100%',
-          }}
+          className="hero-grid-layout"
         >
           {/* Hero Left Copy */}
           <div>
@@ -37,7 +31,7 @@ export function Hero({ destination }: HeroProps) {
               tabIndex={-1}
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 'clamp(2.2rem, 4.4vw, 3.4rem)',
+                fontSize: 'clamp(1.75rem, 4.4vw, 3.2rem)',
                 lineHeight: 1.15,
                 fontWeight: 700,
                 letterSpacing: '-0.025em',

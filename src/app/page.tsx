@@ -228,6 +228,21 @@ export default function HomePage() {
           }
         }
       }
+
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer.trim());
+          if (parsed.type === 'result') {
+            setResult(parsed.data);
+            setCurrentProgress(null);
+            scrollToTopAndFocus('resultsHeading');
+          } else if (parsed.type === 'error') {
+            throw new Error(parsed.error);
+          }
+        } catch (err: any) {
+          if (err.message) throw err;
+        }
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         // User deliberately cancelled
@@ -361,8 +376,39 @@ export default function HomePage() {
                 categories={result.categories}
               />
 
+              {/* Category Jump Pills */}
+              {result.categories.length > 1 && (
+                <nav className="category-jump-nav" aria-label="Jump to category">
+                  <div className="category-jump-track">
+                    {result.categories.map((cat, idx) => {
+                      const slugId = `category-${cat.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                      return (
+                        <a
+                          key={idx}
+                          href={`#${slugId}`}
+                          className="category-jump-pill"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const el = document.getElementById(slugId);
+                            if (el) {
+                              const isReduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                              el.scrollIntoView({ behavior: isReduced ? 'instant' : 'smooth', block: 'start' });
+                              if (typeof window !== 'undefined') {
+                                window.history.pushState(null, '', `#${slugId}`);
+                              }
+                            }
+                          }}
+                        >
+                          {cat.title}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </nav>
+              )}
+
               {result.categories.map((category, idx) => (
-                <CategorySection key={idx} category={category} />
+                <CategorySection key={idx} category={category} categoryIndex={idx} />
               ))}
 
               <SignalCheck signals={result.signalCheck} destination={result.destination} />
