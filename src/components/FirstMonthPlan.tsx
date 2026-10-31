@@ -38,42 +38,215 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
     }
   };
 
-  // Parse into weeks by the "Week N" prefix
-  const weekCards: ParsedWeekCard[] = [];
-  const weekSplitRegex = /(?:^|\b)Week\s*([1-4])(?:\s*[:\-–]\s*|\s+)([\s\S]*?)(?=(?:\bWeek\s*[1-4]|$))/gi;
-  let match: RegExpExecArray | null;
+  const parseWeekCards = (): ParsedWeekCard[] => {
+    const cards: ParsedWeekCard[] = [];
+    const weekSplitRegex = /(?:^|\b)Week\s*([1-4])(?:\s*[:\-–]\s*|\s+)([\s\S]*?)(?=(?:\bWeek\s*[1-4]|$))/gi;
+    let match: RegExpExecArray | null;
 
-  while ((match = weekSplitRegex.exec(firstMonthText)) !== null) {
-    const num = parseInt(match[1], 10);
-    const bodyText = match[2].trim();
-    const fullSentence = `Week ${num} ${bodyText.startsWith(':') || bodyText.startsWith('-') ? bodyText.slice(1).trim() : bodyText}`;
+    while ((match = weekSplitRegex.exec(firstMonthText)) !== null) {
+      const num = parseInt(match[1], 10);
+      const bodyText = match[2].trim();
+      const cleanBody = bodyText.replace(/^[:\-–]\s*/, '').trim();
+      const rawSentence = bodyText.startsWith(':') || bodyText.startsWith('-') || bodyText.startsWith('–')
+        ? `Week ${num}: ${cleanBody}`
+        : `Week ${num} ${cleanBody}`;
+      const fullSentence = rawSentence.replace(/\[cite:?\s*\d*\]/gi, '').trim();
 
-    // Exact match of place names in this sentence
-    const foundPlaces = allPlaces.filter((p) =>
-      fullSentence.toLowerCase().includes(p.name.toLowerCase())
-    );
+      const existingCard = cards.find((c) => c.weekNum === num);
 
-    // FIX 4: Use the title of the category that contains the first place named; if none, just "Week N"
-    let heading = `Week ${num}`;
-    if (foundPlaces.length > 0) {
-      const firstPlace = foundPlaces[0];
-      const parentCategory = categories.find((c) =>
-        c.places.some((p) => p.id === firstPlace.id)
+      // If a card for this week already exists (e.g. "Week 1: Title. Week 1 narrative..."):
+      if (existingCard) {
+        // If existing card had short text, it might have been a title
+        const existingClean = existingCard.sentence.replace(/^Week\s*\d\s*[:\-–]?\s*/i, '').replace(/[.]+$/, '').trim();
+        if (existingClean.length > 0 && existingClean.length < 45 && !existingClean.includes(' begins with') && !existingClean.includes(' visit')) {
+          existingCard.heading = existingClean;
+        }
+
+        // Use the longer, descriptive sentence
+        if (fullSentence.length > existingCard.sentence.length) {
+          existingCard.sentence = fullSentence;
+        } else {
+          existingCard.sentence = `${existingCard.sentence} ${fullSentence}`;
+        }
+
+        // Supplement places and ensure exactly 2 places
+        const extraPlaces = allPlaces.filter((p) =>
+          fullSentence.toLowerCase().includes(p.name.toLowerCase())
+        );
+        const mergedPlaces = [
+          ...extraPlaces,
+          ...existingCard.places.filter((p) => !extraPlaces.some((ep) => ep.id === p.id)),
+        ];
+        existingCard.places = mergedPlaces.slice(0, 2);
+        continue;
+      }
+
+      const weekIdx = num - 1;
+
+      // Check if body starts with a title like "Title. Week N begins..."
+      let derivedTitle = '';
+      const titleMatch = cleanBody.match(/^([A-Z][^.!?\n]{3,40})(?:[.!?]|\s*–)\s*(.*)$/);
+      if (
+        titleMatch &&
+        !titleMatch[1].toLowerCase().startsWith('visit') &&
+        !titleMatch[1].toLowerCase().startsWith('sample') &&
+        !titleMatch[1].toLowerCase().startsWith('begin') &&
+        !titleMatch[1].toLowerCase().startsWith('start')
+      ) {
+        derivedTitle = titleMatch[1].trim();
+      }
+
+      // 1. Direct match: check if place name appears in the sentence
+      let matchedPlaces = allPlaces.filter((p) =>
+        fullSentence.toLowerCase().includes(p.name.toLowerCase())
       );
-      if (parentCategory) {
-        heading = parentCategory.title;
+
+      // 2. Keyword/stem match if direct match didn't find at least 2 places
+      if (matchedPlaces.length < 2) {
+        const existingIds = new Set(matchedPlaces.map((p) => p.id));
+        const keywordMatched = allPlaces.filter((p) => {
+          if (existingIds.has(p.id)) return false;
+          const words = p.name
+            .toLowerCase()
+            .split(/[\s,–\-\(\)\/\&]+/)
+            .filter(
+              (w) =>
+                w.length > 3 &&
+                ![
+                  'restaurant',
+                  'cuisine',
+                  'kitchen',
+                  'house',
+                  'bhavan',
+                  'dhaba',
+                  'dining',
+                  'grill',
+                  'cafe',
+                  'foods',
+                  'market',
+                  'hotel',
+                  'indian',
+                  'south',
+                  'north',
+                  'toronto',
+                  'scarborough',
+                  'markham',
+                ].includes(w)
+            );
+          return words.some((word) => {
+            const re = new RegExp(`\\b${word}\\b`, 'i');
+            return re.test(fullSentence);
+          });
+        });
+        matchedPlaces = [...matchedPlaces, ...keywordMatched];
+      }
+
+      // 3. Guaranteed allocation from corresponding category or allPlaces
+      if (matchedPlaces.length < 2) {
+        const existingIds = new Set(matchedPlaces.map((p) => p.id));
+        const catPlaces = categories[weekIdx]?.places || [];
+        for (const p of catPlaces) {
+          if (!existingIds.has(p.id)) {
+            matchedPlaces.push(p);
+            existingIds.add(p.id);
+            if (matchedPlaces.length >= 2) break;
+          }
+        }
+      }
+
+      if (matchedPlaces.length < 2) {
+        const existingIds = new Set(matchedPlaces.map((p) => p.id));
+        for (const p of allPlaces) {
+          if (!existingIds.has(p.id)) {
+            matchedPlaces.push(p);
+            existingIds.add(p.id);
+            if (matchedPlaces.length >= 2) break;
+          }
+        }
+      }
+
+      const finalPlaces = matchedPlaces.slice(0, 2);
+
+      // Editorial card title: derivedTitle > category title > matched place category
+      let heading = derivedTitle || '';
+      if (!heading && categories[weekIdx]?.title) {
+        heading = categories[weekIdx].title;
+      } else if (!heading && finalPlaces.length > 0) {
+        const parentCategory = categories.find((c) =>
+          c.places.some((p) => p.id === finalPlaces[0].id)
+        );
+        if (parentCategory) {
+          heading = parentCategory.title;
+        }
+      }
+      if (!heading) {
+        heading = 'Featured Culinary Highlights';
+      }
+
+      cards.push({
+        weekNum: num,
+        heading,
+        sentence: fullSentence,
+        places: finalPlaces,
+      });
+    }
+
+    // Fallback if regex found fewer than 2 weeks: parse sentences
+    if (cards.length < 2) {
+      const sentences = firstMonthText
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.replace(/\[cite:?\s*\d*\]/gi, '').trim())
+        .filter((s) => s.length > 5);
+
+      if (sentences.length >= 2) {
+        sentences.slice(0, 4).forEach((sent, idx) => {
+          const num = idx + 1;
+          const weekIdx = idx;
+          const cleanSent = sent.startsWith(`Week ${num}`) ? sent : `Week ${num}: ${sent}`;
+
+          let matchedPlaces = allPlaces.filter((p) =>
+            cleanSent.toLowerCase().includes(p.name.toLowerCase())
+          );
+          if (matchedPlaces.length < 2) {
+            const existingIds = new Set(matchedPlaces.map((p) => p.id));
+            const catPlaces = categories[weekIdx]?.places || [];
+            for (const p of catPlaces) {
+              if (!existingIds.has(p.id)) {
+                matchedPlaces.push(p);
+                existingIds.add(p.id);
+                if (matchedPlaces.length >= 2) break;
+              }
+            }
+          }
+          if (matchedPlaces.length < 2) {
+            const existingIds = new Set(matchedPlaces.map((p) => p.id));
+            for (const p of allPlaces) {
+              if (!existingIds.has(p.id)) {
+                matchedPlaces.push(p);
+                existingIds.add(p.id);
+                if (matchedPlaces.length >= 2) break;
+              }
+            }
+          }
+
+          const heading = categories[weekIdx]?.title || 'Featured Culinary Highlights';
+
+          cards.push({
+            weekNum: num,
+            heading,
+            sentence: cleanSent,
+            places: matchedPlaces.slice(0, 2),
+          });
+        });
       }
     }
 
-    weekCards.push({
-      weekNum: num,
-      heading,
-      sentence: fullSentence,
-      places: foundPlaces,
-    });
-  }
+    return cards;
+  };
 
-  // If parsed 4 or more weeks, or at least 2 weeks
+  const weekCards = parseWeekCards();
+
+  // If parsed 2 or more weeks
   if (weekCards.length >= 2) {
     return (
       <section className="settling-guide-section" style={{ marginTop: '24px' }}>
@@ -96,7 +269,7 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
               <h4 className="week-card-title">{w.heading}</h4>
               <p className="week-card-copy">{w.sentence}</p>
 
-              <div className="week-places-list" style={w.places.length === 0 ? { borderTop: 'none' } : undefined}>
+              <div className="week-places-list">
                 {w.places.map((pl) => (
                   <a
                     key={pl.id}
@@ -107,7 +280,7 @@ export function FirstMonthPlan({ firstMonthText, categories }: FirstMonthPlanPro
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {pl.name}
                     </span>
-                    <svg className="ui-icon" viewBox="0 0 24 24">
+                    <svg className="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
                       <polyline points="9 18 15 12 9 6" />
                     </svg>
                   </a>

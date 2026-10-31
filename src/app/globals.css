@@ -996,26 +996,35 @@ div[tabindex="0"]:focus-visible {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 10px;
+  gap: 8px;
+  padding-top: 14px;
   border-top: 1px dashed var(--color-hairline);
-  min-height: 72px;
+  width: 100%;
 }
 
 .week-place-anchor {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
   color: var(--color-teal);
+  background: var(--color-teal-light);
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 6px;
+  gap: 8px;
+  padding: 8px 14px;
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  touch-action: manipulation;
 }
 
 .week-place-anchor:hover {
-  background: var(--color-teal-light);
+  background: #D8ECE5;
+  color: var(--color-teal);
+  transform: translateX(2px);
 }
 
 /* -------------------------------------------------------------------------
@@ -2049,19 +2058,27 @@ input, select, textarea {
 
   .week-places-list {
     display: flex !important;
-    flex-wrap: wrap !important;
+    flex-direction: column !important;
     gap: 8px !important;
+    width: 100% !important;
+    margin-top: auto !important;
+    padding-top: 14px !important;
+    border-top: 1px dashed var(--color-hairline) !important;
   }
 
   .week-place-anchor {
     min-height: 40px !important;
     padding: 8px 14px !important;
-    border: 1px solid var(--color-hairline) !important;
-    background: var(--bg-surface) !important;
+    border: none !important;
+    background: var(--color-teal-light) !important;
+    color: var(--color-teal) !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     font-size: 0.84rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: var(--radius-sm) !important;
   }
 
   /* Place Cards */
